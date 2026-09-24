@@ -1,0 +1,87 @@
+/* Wikipedia (Vector 2022 / Codex) palette and type, measured from en.wikipedia.org.
+ * shadcn's theme tokens are mapped onto it in globals.css, so every component
+ * picks up Wikipedia's colors, 2px corners and system sans-serif. */
+:root {
+  --wiki-page: #f8f9fa;
+  --wiki-surface: #ffffff;
+  --wiki-text: #202122;
+  --wiki-emphasized: #101418;
+  --wiki-subtle: #54595d;
+  --wiki-placeholder: #72777d;
+  --wiki-link: #3366cc;
+  --wiki-link-hover: #3056a9;
+  --wiki-visited: #795cb2;
+  --wiki-red-link: #d73333;
+  --wiki-border: #a2a9b1;
+  --wiki-border-subtle: #c8ccd1;
+  --wiki-divider: #eaecf0;
+  --wiki-interactive: #eaecf0;
+  --wiki-progressive: #3366cc;
+  --wiki-progressive-hover: #3056a9;
+  --wiki-input-border: #72777d;
+
+  /* Main Page box colors. */
+  --wiki-mp-green-bg: #f5fffa;
+  --wiki-mp-green-border: #cef2e0;
+  --wiki-mp-green-head: #cef2e0;
+  --wiki-mp-green-head-border: #a3bfb1;
+  --wiki-mp-blue-bg: #f5faff;
+  --wiki-mp-blue-border: #cedff2;
+  --wiki-mp-blue-head: #cedff2;
+  --wiki-mp-blue-head-border: #a3b0bf;
+
+  --font-wiki-sans: sans-serif;
+  --font-wiki-serif: 'Linux Libertine', 'Georgia', 'Times', 'Source Serif 4', serif;
+
+  /* Appearance > Text: body copy size and leading. */
+  --wiki-font-size: 16px;
+  --wiki-line-height: 1.625;
+
+  /* Neon UI (ui.neon.com) tokens for the database timing bar, the same in both themes. */
+  --neon-bg: #0c0d0d;
+  --neon-border: #262727;
+  --neon-text: #f3f4f6;
+  --neon-subtle: #9ca3af;
+  --neon-green: #00e599;
+  --font-neon-mono: var(--font-geist-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+:root[data-text='small'] {
+  --wiki-font-size: 14px;
+  --wiki-line-height: 1.6;
+}
+
+:root[data-text='large'] {
+  --wiki-font-size: 20px;
+  --wiki-line-height: 1.6;
+}
+
+/* Appearance > Color > Dark: Wikipedia's night theme. */
+.dark {
+  --wiki-page: #101418;
+  --wiki-surface: #101418;
+  --wiki-text: #eaecf0;
+  --wiki-emphasized: #f8f9fa;
+  --wiki-subtle: #a2a9b1;
+  --wiki-placeholder: #a2a9b1;
+  --wiki-link: #88a3e8;
+  --wiki-link-hover: #a6bbf5;
+  --wiki-visited: #a799cd;
+  --wiki-red-link: #fd7865;
+  --wiki-border: #72777d;
+  --wiki-border-subtle: #54595d;
+  --wiki-divider: #27292d;
+  --wiki-interactive: #27292d;
+  --wiki-progressive: #6485d1;
+  --wiki-progressive-hover: #88a3e8;
+  --wiki-input-border: #a2a9b1;
+
+  --wiki-mp-green-bg: #0b1e1c;
+  --wiki-mp-green-border: #06291f;
+  --wiki-mp-green-head: #06291f;
+  --wiki-mp-green-head-border: #265a47;
+  --wiki-mp-blue-bg: #0d1b2a;
+  --wiki-mp-blue-border: #132643;
+  --wiki-mp-blue-head: #132643;
+  --wiki-mp-blue-head-border: #2d4a74;
+}

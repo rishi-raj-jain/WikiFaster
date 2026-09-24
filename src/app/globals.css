@@ -1,0 +1,271 @@
+/* Wikipedia look (Vector 2022): white page on a light gray body, system
+ * sans-serif copy at 16/26px, serif titles and section headings, #36c links. */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '../tokens.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-wiki-serif);
+  --font-sans: var(--font-wiki-sans);
+  --font-serif: var(--font-wiki-serif);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-link: var(--wiki-link);
+  --color-subtle: var(--wiki-subtle);
+  --color-page: var(--wiki-page);
+  --color-divider: var(--wiki-divider);
+  --color-border-subtle: var(--wiki-border-subtle);
+  --color-emphasized: var(--wiki-emphasized);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 2);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 2);
+  --radius-4xl: calc(var(--radius) * 2);
+}
+
+/* shadcn tokens, pointed at the Wikipedia palette (both themes follow tokens.css). */
+:root {
+  --background: var(--wiki-surface);
+  --foreground: var(--wiki-text);
+  --card: var(--wiki-surface);
+  --card-foreground: var(--wiki-text);
+  --popover: var(--wiki-surface);
+  --popover-foreground: var(--wiki-text);
+  --primary: var(--wiki-progressive);
+  --primary-foreground: #ffffff;
+  --secondary: var(--wiki-page);
+  --secondary-foreground: var(--wiki-text);
+  --muted: var(--wiki-divider);
+  --muted-foreground: var(--wiki-subtle);
+  --accent: var(--wiki-interactive);
+  --accent-foreground: var(--wiki-emphasized);
+  --destructive: var(--wiki-red-link);
+  --border: var(--wiki-border);
+  --input: var(--wiki-input-border);
+  --ring: var(--wiki-progressive);
+  --radius: 2px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--wiki-page);
+    color: var(--wiki-text);
+    overflow-x: clip;
+  }
+  a {
+    color: var(--wiki-link);
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  a:visited {
+    color: var(--wiki-visited);
+  }
+  a.new,
+  a.new:visited {
+    color: var(--wiki-red-link);
+  }
+  /* Everything clickable shows a pointer. Tailwind's reset gives buttons the default arrow. */
+  a[href],
+  button,
+  select,
+  summary,
+  label[for],
+  [role='button'],
+  [role='option'],
+  [role='menuitem'],
+  [role='radio'],
+  [cmdk-item],
+  [data-slot='radio-group-item'],
+  [data-slot='pagination-link'] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled='true'],
+  [data-disabled] {
+    cursor: not-allowed;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Page grid (Vector 2022). Measured: 24px gutters below 1120px and 44px from
+ * there, 196px side columns with 24px gaps, and a 1596px page cap that
+ * Appearance > Width > Wide lifts. Pinned panels are driven by <html> data
+ * attributes (see components/prefs.tsx), so the first paint is already right. */
+:root {
+  --wiki-page-max: 1596px;
+}
+
+:root[data-width='wide'] {
+  --wiki-page-max: 100%;
+}
+
+.wiki-gutter {
+  padding-inline: 24px;
+}
+
+.wiki-toc-column,
+.wiki-appearance-column {
+  display: none;
+}
+
+@media (min-width: 1120px) {
+  .wiki-gutter {
+    padding-inline: 44px;
+  }
+
+  .wiki-page-grid.has-toc {
+    display: grid;
+    grid-template-columns: 196px minmax(0, 1fr);
+    column-gap: 24px;
+  }
+
+  .wiki-main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 196px;
+    column-gap: 24px;
+  }
+
+  .wiki-toc-column,
+  .wiki-appearance-column {
+    display: block;
+  }
+
+  :root[data-toc='hidden'] .wiki-page-grid.has-toc,
+  :root[data-appearance='hidden'] .wiki-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-toc='hidden'] .wiki-toc-column,
+  :root[data-appearance='hidden'] .wiki-appearance-column {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Article body (.mw-parser-output). Sizes scale with Appearance > Text. */
+.wiki-body {
+  font-size: var(--wiki-font-size);
+  line-height: var(--wiki-line-height);
+  color: var(--wiki-text);
+  overflow-wrap: break-word;
+}
+
+.wiki-body p {
+  margin: 0.5em 0 1em;
+}
+
+.wiki-heading {
+  font-family: var(--font-wiki-serif);
+  font-size: 1.5em;
+  line-height: 1.375;
+  font-weight: normal;
+  color: var(--wiki-emphasized);
+  margin: 0.25em 0;
+  padding-top: 0.5em;
+  padding-bottom: 0.17em;
+  border-bottom: 1px solid var(--wiki-border);
+  scroll-margin-top: 0.5em;
+}
+
+/* Wikipedia puts a little more air above a heading that follows a list. */
+.wiki-body ul + .wiki-heading {
+  margin-top: 1em;
+}
+
+.wiki-body ul {
+  margin: 0.3em 0 0 1.6em;
+  padding: 0;
+  list-style-type: disc;
+}
+
+.wiki-body li {
+  margin-bottom: 0.1em;
+}
+
+.wiki-body ul:last-child {
+  margin-bottom: 0.5em;
+}
+
+/* The category box (#catlinks). */
+.wiki-catlinks {
+  border: 1px solid var(--wiki-border);
+  background: var(--wiki-page);
+  padding: 5px;
+  margin-top: 1em;
+  font-size: var(--wiki-font-size);
+  line-height: 1.6;
+}
+
+.wiki-catlinks ul {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wiki-catlinks li {
+  display: inline-block;
+  margin: 0.125em 0;
+  padding: 0 0.5em;
+  border-left: 1px solid var(--wiki-border);
+  line-height: 1.25;
+}
+
+.wiki-catlinks li:first-child {
+  padding-left: 0.25em;
+  border-left: 0;
+}
+
+/* Page title (#firstHeading). */
+.wiki-title {
+  font-family: var(--font-wiki-serif);
+  font-size: 1.8rem;
+  line-height: 1.375;
+  font-weight: normal;
+  color: var(--wiki-emphasized);
+  overflow-wrap: anywhere;
+}
+
+/* Search snippet matches (.searchmatch). */
+.wiki-searchmatch {
+  font-weight: bold;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

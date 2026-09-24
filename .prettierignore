@@ -1,0 +1,15 @@
+# Generated
+.next/
+next-env.d.ts
+*.tsbuildinfo
+package-lock.json
+
+# Vendored / local
+node_modules/
+data/
+venv/
+Logs/
+.vercel
+.DS_Store
+.playwright-mcp/
+*.log
