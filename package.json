@@ -9,13 +9,16 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:download": "./venv/bin/python scripts/load.py",
     "db:ingest": "./venv/bin/python scripts/ingest.py --workers 128",
+    "db:images": "./venv/bin/python scripts/images.py",
     "db:generate": "drizzle-kit generate",
     "db:lexicon": "tsx scripts/lexicon.ts",
     "db:prewarm": "tsx scripts/prewarm.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
+    "@neon/functions": "^0.11.0",
     "@neondatabase/serverless": "^1.1.0",
+    "aws4fetch": "^1.0.20",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.4.0",
@@ -29,6 +32,7 @@
   },
   "devDependencies": {
     "@dotenvx/dotenvx": "^2.30.0",
+    "@neon/config": "^1.7.3",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.6.2",
     "@types/pg": "^8.23.1",

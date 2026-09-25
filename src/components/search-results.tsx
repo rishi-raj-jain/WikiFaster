@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
-import { searchHref, wikiHref } from '@/lib/links'
+import { imageSrc, searchHref, wikiHref } from '@/lib/links'
 import type { SearchHit } from '@/lib/queries'
 import type { SearchPayload } from '@/lib/search'
 import { cn } from 'cn'
@@ -34,17 +34,25 @@ function Snippet({ text }: { text: string }) {
   )
 }
 
+/** A result, with its lead image on the left when the article has one, as on Special:Search. */
 function Result({ hit }: { hit: SearchHit }) {
   return (
-    <li className="min-w-0">
-      <div className="text-[1.0625rem] leading-snug">
-        <Link href={wikiHref(hit.title)}>{hit.title}</Link>
-      </div>
-      <div className="text-foreground mt-0.5 text-sm leading-[1.6]">
-        <Snippet text={hit.snippet} />
-      </div>
-      <div className="text-subtle mt-0.5 text-[0.8125rem]">
-        {Math.max(1, Math.round(hit.bytes / 1024)).toLocaleString()} KB ({hit.words.toLocaleString()} words)
+    <li className="flex min-w-0 gap-3">
+      {hit.image ? (
+        <Link href={wikiHref(hit.title)} tabIndex={-1} aria-hidden className="shrink-0">
+          <img src={imageSrc(hit.image)} alt="" loading="lazy" decoding="async" className="border-border-subtle size-24 rounded-xs border bg-white object-cover" />
+        </Link>
+      ) : null}
+      <div className="min-w-0">
+        <div className="text-[1.0625rem] leading-snug">
+          <Link href={wikiHref(hit.title)}>{hit.title}</Link>
+        </div>
+        <div className="text-foreground mt-0.5 text-sm leading-[1.6]">
+          <Snippet text={hit.snippet} />
+        </div>
+        <div className="text-subtle mt-0.5 text-[0.8125rem]">
+          {Math.max(1, Math.round(hit.bytes / 1024)).toLocaleString()} KB ({hit.words.toLocaleString()} words)
+        </div>
       </div>
     </li>
   )

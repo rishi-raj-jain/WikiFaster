@@ -3,14 +3,15 @@ import type { Metadata } from 'next'
 /**
  * A page's metadata the way Wikipedia writes its <head>: the full title as
  * both <title> and og:title, og:type website, a canonical URL, no meta
- * description, and `max-image-preview:standard` for crawlers. Search pages
+ * description, the lead image as og:image when there is one, and
+ * `max-image-preview:standard` for crawlers. Search pages
  * and missing articles are `noindex,nofollow`.
  */
-export function pageMetadata(fullTitle: string, { canonical, index = true, description }: { canonical?: string; index?: boolean; description?: string } = {}): Metadata {
+export function pageMetadata(fullTitle: string, { canonical, index = true, description, image }: { canonical?: string; index?: boolean; description?: string; image?: string } = {}): Metadata {
   return {
     title: { absolute: fullTitle },
     description,
-    openGraph: { title: fullTitle, type: 'website', description },
+    openGraph: { title: fullTitle, type: 'website', description, images: image ? [image] : undefined },
     robots: { index, follow: index, 'max-image-preview': 'standard' },
     alternates: canonical ? { canonical } : undefined,
   }

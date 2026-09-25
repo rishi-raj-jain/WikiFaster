@@ -4,9 +4,10 @@ import { ARTICLE_TABS, ArticleShell, Tagline, articleViewTabs, wikipediaUrl } fr
 import { FOOTER_LINKS, Footer, LICENSE_LINE, PageLayout, TitleBar } from '@/components/page-layout'
 import { TocButton, TocSidebar } from '@/components/toc'
 import { measureDb } from '@/db'
+import { queueUncopiedImages } from '@/lib/image-copies'
 import { canonicalTitle, existingTitles, readArticle, type ArticleRecord } from '@/lib/queries'
 import { SEE_ALSO, linkTitles } from '@/lib/article-links'
-import { LICENSE_URL, SITE_URL, searchHref, wikiHref } from '@/lib/links'
+import { LICENSE_URL, SITE_URL, filePageUrl, imageSrc, searchHref, wikiHref, type ImageRef } from '@/lib/links'
 import { JsonLd } from '@/lib/seo'
 import { firstSentence, parseArticle, type Block, type ParsedArticle } from '@/lib/wikitext'
 import Link from 'next/link'
@@ -24,6 +25,20 @@ function Lead({ text, title }: { text: string; title: string }) {
       <b>{text.slice(at, at + bare.length)}</b>
       {text.slice(at + bare.length)}
     </p>
+  )
+}
+
+/**
+ * The lead image, floated right where an infobox's image would be, and linked
+ * to its file page on Wikipedia, which credits the author and license.
+ */
+function LeadImage({ image, title }: { image: ImageRef; title: string }) {
+  return (
+    <figure className="wiki-lead-image">
+      <a href={filePageUrl(image)} target="_blank" rel="noreferrer" title="Image credit and license on Wikipedia">
+        <img src={imageSrc(image)} alt={title} decoding="async" fetchPriority="high" />
+      </a>
+    </figure>
   )
 }
 
@@ -88,7 +103,7 @@ type Loaded =
 
 /**
  * Reads and parses the article once per request, for the metadata and every
- * streamed part (React's `cache` shares the call within a request only). A
+ * streamed part (React's `cache` shares the call within one render only). A
  * miss looks for the stored spelling ("albert einstein" -> Albert Einstein).
  */
 export const loadArticle = async (title: string): Promise<Loaded> => {
@@ -153,6 +168,7 @@ function ArticleBody({ loaded, check }: { loaded: Extract<Loaded, { kind: 'artic
   const { article, parsed, disambiguation } = loaded
   return (
     <>
+      {article.image ? <LeadImage image={article.image} title={article.title} /> : null}
       <Blocks blocks={parsed.blocks} title={article.title} check={check} disambiguation={disambiguation} />
       <NeighbourLinks prev={loaded.prev} next={loaded.next} />
       {parsed.categories.length > 0 ? (
@@ -182,6 +198,7 @@ function articleJsonLd(article: ArticleRecord) {
     name: article.title,
     url: `${SITE_URL}${wikiHref(article.title)}`,
     headline: firstSentence(article.text, 110),
+    ...(article.image ? { image: imageSrc(article.image) } : {}),
     author: { '@type': 'Organization', name: 'Contributors to Wikimedia projects' },
     isBasedOn: wikipediaUrl(article.title),
     license: LICENSE_URL,
@@ -197,6 +214,7 @@ function articleJsonLd(article: ArticleRecord) {
 async function ArticleContent({ title, page, check }: { title: string; page: Promise<Loaded>; check: Promise<LinkCheck> }) {
   const loaded = await page
   if (loaded.kind === 'redirect') redirect(wikiHref(loaded.to))
+  if (loaded.kind === 'article') queueUncopiedImages([loaded.article])
   const sections = loaded.kind === 'article' ? loaded.parsed.sections : []
   const original = wikipediaUrl(title)
   return (

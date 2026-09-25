@@ -7,15 +7,24 @@ import { ButtonGroup } from '@/components/ui/button-group'
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command'
 import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
 import { formatMs } from '@/lib/format'
-import { searchHref, wikiHref } from '@/lib/links'
+import { imageSrc, searchHref, wikiHref, type ImageRef } from '@/lib/links'
 import { Command as CommandPrimitive } from 'cmdk'
 import { cn } from 'cn'
-import { SearchIcon } from 'lucide-react'
+import { ImageIcon, SearchIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
-type Suggestion = { title: string; description: string }
+type Suggestion = { title: string; description: string; image: ImageRef | null }
 type Suggestions = { suggestions: Suggestion[]; dbMs: number; ms: number }
+
+/** A suggestion's lead image as a square, or an image icon in its place, as in Wikipedia's search dropdown. */
+function Thumbnail({ image }: { image: ImageRef | null }) {
+  return (
+    <span className="border-border-subtle bg-secondary text-subtle flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xs border">
+      {image ? <img src={imageSrc(image)} alt="" decoding="async" className="size-full bg-white object-cover" /> : <ImageIcon className="size-5" />}
+    </span>
+  )
+}
 
 /** The top of the dropdown, in the Neon bar's style: how long Postgres took to find these titles, and how many it found. */
 function SuggestTiming({ ms, count }: { ms: number; count: number }) {
@@ -180,12 +189,15 @@ export function SearchBox({ autoFocus = false, onDone, className }: { autoFocus?
                     key={item.title}
                     value={item.title}
                     onSelect={() => go(wikiHref(item.title))}
-                    className="[[data-navigated=true]_&]:data-selected:bg-accent flex-col items-start gap-0 rounded-none px-3 py-2 data-selected:bg-transparent"
+                    className="[[data-navigated=true]_&]:data-selected:bg-accent items-center gap-3 rounded-none px-3 py-2 data-selected:bg-transparent"
                   >
-                    <span className="text-foreground text-[0.95rem]">
-                      <Highlight title={item.title} query={term} />
+                    <Thumbnail image={item.image} />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-foreground text-[0.95rem]">
+                        <Highlight title={item.title} query={term} />
+                      </span>
+                      {item.description ? <span className="text-subtle line-clamp-1 text-xs">{item.description}</span> : null}
                     </span>
-                    {item.description ? <span className="text-subtle line-clamp-1 text-xs">{item.description}</span> : null}
                   </CommandItem>
                 ))}
               </CommandGroup>

@@ -195,6 +195,43 @@
   padding-bottom: 0.17em;
   border-bottom: 1px solid var(--wiki-border);
   scroll-margin-top: 0.5em;
+  /* Stops the underline at the lead image instead of running beneath it, as MediaWiki does. */
+  overflow: hidden;
+}
+
+/* The lead image, placed like an infobox image and shown at its own size (the
+ * 250px thumbnail, or smaller when the original is), never stretched. It sits
+ * above the text on narrow screens. Transparent images get a white backing so
+ * diagrams and flags stay legible in dark mode, as on Wikipedia. */
+.wiki-lead-image {
+  float: right;
+  clear: right;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0.5em 0 1em 1.4em;
+  padding: 0.25em;
+  border: 1px solid var(--wiki-border-subtle);
+  background: var(--secondary);
+}
+
+.wiki-lead-image a,
+.wiki-lead-image img {
+  display: block;
+}
+
+.wiki-lead-image img {
+  max-width: 100%;
+  height: auto;
+  max-height: 30em;
+  object-fit: contain;
+  background: #fff;
+}
+
+@media (max-width: 639px) {
+  .wiki-lead-image {
+    float: none;
+    margin: 0.5em auto 1em;
+  }
 }
 
 /* Wikipedia puts a little more air above a heading that follows a list. */

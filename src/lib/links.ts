@@ -38,3 +38,27 @@ export function searchHref(query: string, options: { page?: number; fulltext?: b
 export function anchorId(text: string): string {
   return text.trim().replace(/\s+/g, '_')
 }
+
+/** An article's lead image: its file name, and the key prefix of its copy in the "assets" bucket once the images function has made one. */
+export type ImageRef = { file: string; stored: string | null }
+
+/** The one thumbnail width the site shows and the images function copies, a size Wikimedia renders ahead of time. */
+const WIDTH = 250
+
+/** The public "assets" bucket (set from AWS_ENDPOINT_URL_S3 in next.config.ts), or empty to always use Wikimedia. */
+const ASSETS_URL = process.env.NEXT_PUBLIC_ASSETS_URL ?? ''
+
+/**
+ * A lead image at 250px: the copy in Neon Object Storage when there is one,
+ * otherwise Wikipedia's file redirect, which finds the file on Commons or on
+ * English Wikipedia and sends the browser to its thumbnail.
+ */
+export function imageSrc(image: ImageRef): string {
+  if (image.stored && ASSETS_URL) return `${ASSETS_URL}/${image.stored}/${WIDTH}`
+  return `https://en.wikipedia.org/w/index.php?title=Special:Redirect/file/${encodeURIComponent(image.file)}&width=${WIDTH}`
+}
+
+/** The image's file page on Wikipedia, which credits its author and license. */
+export function filePageUrl(image: ImageRef): string {
+  return `https://en.wikipedia.org/wiki/File:${encodeURIComponent(image.file)}`
+}

@@ -36,6 +36,34 @@
       "when": 1790208000004,
       "tag": "0004_site_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790208000005,
+      "tag": "0005_article_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790208000006,
+      "tag": "0006_image_copies",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790208000007,
+      "tag": "0007_image_queue_priority",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790208000008,
+      "tag": "0008_article_images_file",
+      "breakpoints": true
     }
   ]
 }

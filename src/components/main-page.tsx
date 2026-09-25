@@ -4,7 +4,8 @@ import { GithubMark, NeonLogo, VercelMark } from '@/components/logos'
 import { measureDb, type DbTimed } from '@/db'
 import { FOOTER_LINKS, Footer, LICENSE_LINE, PageLayout, TitleBar } from '@/components/page-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { SOURCE_URL, SPECIAL_RANDOM, wikiHref } from '@/lib/links'
+import { SOURCE_URL, SPECIAL_RANDOM, filePageUrl, imageSrc, wikiHref } from '@/lib/links'
+import { queueUncopiedImages } from '@/lib/image-copies'
 import { mainPageData, type MainPageData } from '@/lib/queries'
 import { firstSentence, leadParagraphs, sectionItems } from '@/lib/wikitext'
 import { cn } from 'cn'
@@ -45,15 +46,25 @@ async function ArticleCount({ data }: { data: Data }) {
   return <Link href={wikiHref(SPECIAL_RANDOM)}>{count.toLocaleString()}</Link>
 }
 
-/** "From today's featured article": a random substantial article, new on every load. */
+/**
+ * "From today's featured article": a random substantial article, new on every
+ * load, with its lead image on the left. Candidates with an image go first.
+ */
 async function Featured({ data }: { data: Data }) {
   const candidates = (await data).value.featured
-  const article = candidates.find((candidate) => !LIST_PAGE.test(candidate.title) && isFact(firstSentence(candidate.text, 400))) ?? candidates[0]
+  const readable = candidates.filter((candidate) => !LIST_PAGE.test(candidate.title) && isFact(firstSentence(candidate.text, 400)))
+  const article = readable.find((candidate) => candidate.image) ?? readable[0] ?? candidates[0]
   if (!article) return null
+  queueUncopiedImages([article])
   const [first, ...rest] = leadParagraphs(article.text, 1100)
   return (
     <>
-      <div>
+      <div className="flow-root">
+        {article.image ? (
+          <a href={filePageUrl(article.image)} target="_blank" rel="noreferrer" title="Image credit and license on Wikipedia" className="float-left mt-1 mr-3 mb-1">
+            <img src={imageSrc(article.image)} alt={article.title} decoding="async" className="border-border-subtle max-h-40 w-[100px] border bg-white object-contain" />
+          </a>
+        ) : null}
         <p>
           <Blurb text={first ?? ''} title={article.title} italic />
         </p>

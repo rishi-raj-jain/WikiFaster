@@ -5,8 +5,8 @@ import * as schema from './schema'
 
 /**
  * The app talks to Neon over the stateless SQL-over-HTTP transport, so every
- * request is a self-contained round trip with no connection to pool, and no
- * result is ever reused: each page view reads the database again.
+ * request is a self-contained round trip with no connection to pool. Nothing
+ * is cached: every page and API response queries Postgres live.
  */
 function databaseUrl(): string {
   const url = process.env.DATABASE_URL_UNPOOLED

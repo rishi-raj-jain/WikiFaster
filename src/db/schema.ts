@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { bigint, boolean, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core'
+import { bigint, boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 /**
  * The full-text expression both search indexes are built on. Queries must
@@ -32,6 +32,37 @@ export const articles = pgTable(
 
 export type Article = typeof articles.$inferSelect
 
+/**
+ * Each article's freely licensed lead image, by page ID: the file name on
+ * Wikipedia or Commons ("Aristotle_Altemps_Inv8575.jpg"). Loaded from the
+ * page_props dump by `scripts/images.py`. `stored` is the key prefix of its
+ * copy in the "assets" bucket, set by the images function (`functions/images.ts`).
+ */
+export const articleImages = pgTable('article_images', { id: bigint('id', { mode: 'number' }).primaryKey(), file: text('file').notNull(), stored: text('stored') }, (table) => [
+  index('article_images_file_idx').on(table.file),
+])
+
+/**
+ * Articles whose lead image still needs copying into the bucket, drained by the
+ * images function every minute in `priority` order: 0 for articles people
+ * viewed, then the backfill by article size, largest first.
+ */
+export const imageQueue = pgTable(
+  'image_queue',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey(),
+    priority: bigint('priority', { mode: 'number' }).notNull().default(0),
+    queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    attempts: integer('attempts').notNull().default(0),
+    error: text('error'),
+  },
+  (table) => [
+    index('image_queue_next_idx')
+      .on(table.priority, table.queuedAt)
+      .where(sql`${table.attempts} < 5`),
+  ],
+)
 /**
  * Lexicon behind typo suggestions: title words and how many titles use each,
  * trigram-indexed for fuzzy lookup. Rebuilt by `npm run db:lexicon`.

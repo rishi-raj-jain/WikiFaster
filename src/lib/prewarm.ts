@@ -24,8 +24,8 @@ const RELATIONS = [
   // site_stats: Main Page article count
   'site_stats_pkey',
   // tables
-  'search_terms',
-  'site_stats',
+  // 'search_terms',
+  // 'site_stats',
 ]
 
 /**

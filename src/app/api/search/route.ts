@@ -1,3 +1,4 @@
+import { queueUncopiedImages } from '@/lib/image-copies'
 import { serverTiming } from '@/lib/server-timing'
 import { pageNumber, runSearch } from '@/lib/search'
 import { NextRequest } from 'next/server'
@@ -9,5 +10,6 @@ export const maxDuration = 300
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
   const payload = await runSearch((params.get('q') ?? '').trim().slice(0, 300), pageNumber(params.get('page')), params.get('verbatim') === '1')
+  queueUncopiedImages(payload.rows)
   return Response.json(payload, { headers: { 'Server-Timing': serverTiming(payload.dbMs, payload.ms) } })
 }

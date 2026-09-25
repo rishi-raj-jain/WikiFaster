@@ -1,5 +1,6 @@
 import { db, recordDbTime, sql, timed } from '@/db'
 import { articles, SEARCH_TSV, siteStats } from '@/db/schema'
+import type { ImageRef } from '@/lib/links'
 import { asc, desc, eq, gt, inArray, lt, sql as dsql } from 'drizzle-orm'
 
 export const PAGE_SIZE = 20
@@ -17,9 +18,10 @@ const TITLE_BOOST = 3
 
 type Row = Record<string, unknown>
 
-export type ArticleRecord = { id: number; url: string; title: string; text: string }
-export type Suggestion = { title: string; description: string }
-export type SearchHit = { id: number; title: string; snippet: string; bytes: number; words: number }
+/** `image` is the article's lead image, or null when it has none. */
+export type ArticleRecord = { id: number; url: string; title: string; text: string; image: ImageRef | null }
+export type Suggestion = { id: number; title: string; description: string; image: ImageRef | null }
+export type SearchHit = { id: number; title: string; snippet: string; bytes: number; words: number; image: ImageRef | null }
 
 /** How the query was matched, which decides the index that serves it. */
 export type SearchMode = 'fulltext' | 'prefix' | 'title'
@@ -117,14 +119,40 @@ async function runBuilt(query: { toSQL(): { sql: string; params: unknown[] } }):
   return run(null, text, values)
 }
 
+function asImage(value: unknown): ImageRef | null {
+  if (!value || typeof value !== 'object') return null
+  const { file, stored } = value as Record<string, unknown>
+  return typeof file === 'string' ? { file, stored: typeof stored === 'string' ? stored : null } : null
+}
+
+/**
+ * The lead image of the row aliased `alias`, as a JSON `image` column
+ * (`{ file, stored }`): one probe of the `article_images` primary key, null
+ * when the article has none.
+ */
+function imageExpression(alias: string): string {
+  return `(SELECT json_build_object('file', file, 'stored', stored) FROM article_images WHERE article_images.id = ${alias}.id)`
+}
+
+function imageOf(alias: string): string {
+  return `${imageExpression(alias)} AS image`
+}
+
 function asArticle(row: Row): ArticleRecord {
-  return { id: asInt(row.id), url: String(row.url), title: String(row.title), text: String(row.text) }
+  return { id: asInt(row.id), url: String(row.url), title: String(row.title), text: String(row.text), image: asImage(row.image) }
 }
 
 // ---------------------------------------------------------------------------
 // Articles
 
-const ARTICLE_COLUMNS = { id: articles.id, url: articles.url, title: articles.title, text: articles.text }
+const ARTICLE_COLUMNS = {
+  id: articles.id,
+  url: articles.url,
+  title: articles.title,
+  text: articles.text,
+  // Written out in SQL: Drizzle renders both ids as a bare "id", which the subquery would read as its own.
+  image: dsql.raw(imageExpression('articles')).as('image'),
+}
 
 /** An article and its alphabetical neighbours (the titles just before and after it), for the previous/next links. */
 export type ArticleRead = { article: ArticleRecord | null; prev: string | null; next: string | null }
@@ -174,12 +202,12 @@ export async function existingTitles(titles: string[]): Promise<Set<string>> {
 function randomArticlesStatement(count: number, minBytes: number, leadChars: number): Statement {
   return {
     text: `WITH bounds AS (SELECT min(id) AS lo, max(id) - min(id) AS span FROM articles)
-     SELECT a.id, a.url, a.title, a.text
+     SELECT a.id, a.url, a.title, a.text, a.image
      FROM generate_series(1, $1::int) g
      CROSS JOIN bounds
      CROSS JOIN LATERAL (SELECT bounds.lo + floor(random() * bounds.span)::bigint + g * 0 AS pick) r
      CROSS JOIN LATERAL (
-       SELECT id, url, title, left(text, $3::int) AS text FROM articles
+       SELECT id, url, title, left(text, $3::int) AS text, ${imageOf('articles')} FROM articles
        WHERE id >= r.pick AND octet_length(text) >= $2::int
        ORDER BY id LIMIT 1
      ) a`,
@@ -222,14 +250,18 @@ function articleCountStatement(): Statement {
 export async function suggest(term: string, limit = 10): Promise<Suggestion[]> {
   const q = term.trim().toLowerCase()
   if (!q) return []
-  const found = new Map<string, string>()
-  const add = (rows: Row[]) => rows.forEach((row) => found.size < limit && !found.has(String(row.title)) && found.set(String(row.title), String(row.lead ?? '')))
+  const found = new Map<string, Suggestion>()
+  const add = (rows: Row[]) =>
+    rows.forEach((row) => {
+      const title = String(row.title)
+      if (found.size < limit && !found.has(title)) found.set(title, { id: asInt(row.id), title, description: String(row.lead ?? ''), image: asImage(row.image) })
+    })
 
   add(
     await run(
       null,
-      `SELECT title, left(text, 400) AS lead FROM (
-         SELECT title, text FROM articles WHERE lower(title) LIKE $1 ORDER BY lower(title) USING ~<~ LIMIT 200
+      `SELECT id, title, left(text, 400) AS lead, ${imageOf('prefix')} FROM (
+         SELECT id, title, text FROM articles WHERE lower(title) LIKE $1 ORDER BY lower(title) USING ~<~ LIMIT 200
        ) prefix
        ORDER BY lower(title) = $2 DESC, pg_column_size(text) DESC
        LIMIT $3`,
@@ -240,8 +272,8 @@ export async function suggest(term: string, limit = 10): Promise<Suggestion[]> {
     add(
       await run(
         null,
-        `SELECT title, left(text, 400) AS lead FROM (
-           SELECT title, text FROM articles WHERE lower(title) LIKE $1 LIMIT 200
+        `SELECT id, title, left(text, 400) AS lead, ${imageOf('contains')} FROM (
+           SELECT id, title, text FROM articles WHERE lower(title) LIKE $1 LIMIT 200
          ) contains
          ORDER BY pg_column_size(text) DESC
          LIMIT $2`,
@@ -253,7 +285,7 @@ export async function suggest(term: string, limit = 10): Promise<Suggestion[]> {
     add(
       await run(
         { 'pg_trgm.similarity_threshold': 0.45 },
-        `SELECT title, left(text, 400) AS lead FROM articles
+        `SELECT id, title, left(text, 400) AS lead, ${imageOf('articles')} FROM articles
          WHERE lower(title) % $1
          ORDER BY similarity(lower(title), $1) DESC, pg_column_size(text) DESC
          LIMIT $2`,
@@ -261,7 +293,7 @@ export async function suggest(term: string, limit = 10): Promise<Suggestion[]> {
       ),
     )
   }
-  return [...found].map(([title, lead]) => ({ title, description: lead }))
+  return [...found.values()]
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +368,7 @@ const HEADLINE = `ts_headline('english', left(text, 8000), websearch_to_tsquery(
 const STATS = `octet_length(text) AS bytes, length(text) - length(replace(text, ' ', '')) + 1 AS words`
 
 function asHit(row: Row): SearchHit {
-  return { id: asInt(row.id), title: String(row.title), snippet: String(row.snippet ?? ''), bytes: asInt(row.bytes), words: asInt(row.words) }
+  return { id: asInt(row.id), title: String(row.title), snippet: String(row.snippet ?? ''), bytes: asInt(row.bytes), words: asInt(row.words), image: asImage(row.image) }
 }
 
 /**
@@ -368,7 +400,7 @@ export function searchMode(q: string, analysis: QueryAnalysis): SearchMode {
 async function titleMatches(q: string): Promise<Row[]> {
   return run(
     { ...RANKED, 'lakebase_bm25.default_limit': 100 },
-    `SELECT id, title, ${HEADLINE} AS snippet, ${STATS} FROM (
+    `SELECT id, title, ${HEADLINE} AS snippet, ${STATS}, ${imageOf('boosted')} FROM (
        SELECT id, title, text FROM (
          SELECT id, title, text FROM articles
          ORDER BY ${TITLE_TSV} <@> to_bm25query(to_tsvector('english', $2), '${TITLE_BM25_INDEX}') LIMIT 100
@@ -400,7 +432,7 @@ async function bodyMatches(q: string, offset: number, limit: number, skip: numbe
   const window = (size: number) =>
     run(
       { ...RANKED, 'lakebase_bm25.default_limit': size },
-      `SELECT id, title, ${HEADLINE} AS snippet, ${STATS} FROM (
+      `SELECT id, title, ${HEADLINE} AS snippet, ${STATS}, ${imageOf('page')} FROM (
          SELECT id, title, text, pos FROM (
            SELECT id, title, text, row_number() OVER () AS pos
            FROM (SELECT id, title, text FROM articles ORDER BY ${bm25} LIMIT ${size}) candidates
@@ -416,7 +448,7 @@ async function bodyMatches(q: string, offset: number, limit: number, skip: numbe
   if (ranked.length === limit) return ranked
   return run(
     BITMAP,
-    `SELECT id, title, ${HEADLINE} AS snippet, ${STATS} FROM (
+    `SELECT id, title, ${HEADLINE} AS snippet, ${STATS}, ${imageOf('page')} FROM (
        SELECT id, title, text FROM articles WHERE ${MATCH} AND id <> ALL($5::bigint[])
        ORDER BY ${bm25} LIMIT $3 OFFSET $4
      ) page`,
@@ -432,7 +464,7 @@ export async function searchArticles(q: string, page: number, analysis: QueryAna
     const { rows, ms } = await timed(() =>
       run(
         null,
-        `SELECT id, title, left(text, 300) AS snippet, ${STATS} FROM articles
+        `SELECT id, title, left(text, 300) AS snippet, ${STATS}, ${imageOf('articles')} FROM articles
          WHERE lower(title) ~>=~ $1 AND lower(title) ~<~ $2 ORDER BY lower(title) USING ~<~ LIMIT $3 OFFSET $4`,
         [...prefixRange(q), PAGE_SIZE, offset],
       ),
@@ -446,7 +478,7 @@ export async function searchArticles(q: string, page: number, analysis: QueryAna
         null,
         // Exact title first, then whole-word phrase matches ("The Who" before
         // "The Whores"), then the most substantial articles.
-        `SELECT id, title, left(text, 300) AS snippet, ${STATS} FROM articles
+        `SELECT id, title, left(text, 300) AS snippet, ${STATS}, ${imageOf('articles')} FROM articles
          WHERE lower(title) LIKE $1
          ORDER BY lower(title) = $2 DESC, lower(title) ~ $3 DESC, octet_length(text) DESC, title LIMIT $4 OFFSET $5`,
         [`%${likeLiteral(q.toLowerCase())}%`, q.toLowerCase(), `(^|\\W)${regexLiteral(q.toLowerCase())}($|\\W)`, PAGE_SIZE, offset],
@@ -627,4 +659,22 @@ export async function mainPageData(today: Date): Promise<MainPageData> {
     random: uniqueArticles(random),
     onThisDay: firstDateArticle(onThisDay, titles),
   }
+}
+
+// ---------------------------------------------------------------------------
+// Image copies
+
+/**
+ * Queues articles whose lead image is still served from Wikimedia, for the
+ * images function to copy into the bucket. Viewed articles go first
+ * (priority 0), so one already waiting in the backfill moves to the front. Not
+ * timed: it runs after the response, outside every page's database time.
+ */
+export async function queueImageCopies(ids: number[]): Promise<void> {
+  if (ids.length === 0) return
+  await sql.query(
+    `INSERT INTO image_queue (id) SELECT unnest($1::bigint[])
+     ON CONFLICT (id) DO UPDATE SET priority = 0 WHERE image_queue.priority > 0`,
+    [ids],
+  )
 }
