@@ -1,5 +1,5 @@
 import { AppearancePanel } from '@/components/appearance-panel'
-import { SOURCE_URL } from '@/lib/links'
+import { LICENSE_URL, SOURCE_URL } from '@/lib/links'
 import { cn } from 'cn'
 import Link from 'next/link'
 
@@ -33,7 +33,7 @@ export function TitleBar({ title, tocButton, left = [], right = [], hideTitle = 
   return (
     <div>
       {hideTitle ? null : (
-        <div className="border-border flex items-start border-b">
+        <div className="flex items-start border-b border-border">
           {tocButton}
           <h1 className="wiki-title min-w-0 flex-1">{title}</h1>
         </div>
@@ -48,7 +48,7 @@ export function TitleBar({ title, tocButton, left = [], right = [], hideTitle = 
 
 export function Footer({ lines, links }: { lines: React.ReactNode[]; links: { label: string; href: string }[] }) {
   return (
-    <footer className="border-border mt-8 border-t py-3 text-xs leading-relaxed">
+    <footer className="mt-8 border-t border-border py-3 text-xs leading-relaxed">
       <ul className="flex flex-col gap-1.5">
         {lines.map((line, i) => (
           <li key={i}>{line}</li>
@@ -70,7 +70,7 @@ export function Footer({ lines, links }: { lines: React.ReactNode[]; links: { la
 export const LICENSE_LINE = (
   <>
     Text is available under the{' '}
-    <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
+    <a href={LICENSE_URL} target="_blank" rel="noreferrer">
       Creative Commons Attribution-ShareAlike 4.0 License
     </a>
     , from the English Wikipedia dump of 1 November 2023. This is an unofficial mirror served from Neon Postgres, not affiliated with the Wikimedia Foundation.
@@ -93,7 +93,7 @@ export const FOOTER_LINKS = [
 export function PageLayout({ toc, children, footer }: { toc?: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode }) {
   const hasToc = toc != null
   return (
-    <div className="wiki-gutter bg-background mx-auto w-full max-w-(--wiki-page-max) pt-4 pb-2 min-[1120px]:pt-5">
+    <div className="wiki-gutter mx-auto w-full max-w-(--wiki-page-max) bg-background pt-4 pb-2 min-[1120px]:pt-5">
       <div className={cn('wiki-page-grid', hasToc && 'has-toc')}>
         {hasToc ? <aside className="wiki-toc-column pt-[46px]">{toc}</aside> : null}
         <div className="wiki-main-grid">

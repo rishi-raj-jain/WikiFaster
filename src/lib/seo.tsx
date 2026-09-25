@@ -1,17 +1,21 @@
+import { OG_IMAGE } from '@/lib/links'
 import type { Metadata } from 'next'
 
 /**
  * A page's metadata the way Wikipedia writes its <head>: the full title as
  * both <title> and og:title, og:type website, a canonical URL, no meta
- * description, the lead image as og:image when there is one, and
+ * description, a 1200×630 social card as og:image (`image`, the article's own
+ * card, or WikiFaster's), shown large on X, and
  * `max-image-preview:standard` for crawlers. Search pages
  * and missing articles are `noindex,nofollow`.
  */
 export function pageMetadata(fullTitle: string, { canonical, index = true, description, image }: { canonical?: string; index?: boolean; description?: string; image?: string } = {}): Metadata {
+  const card = image ? { ...OG_IMAGE, url: image, alt: fullTitle } : OG_IMAGE
   return {
     title: { absolute: fullTitle },
     description,
-    openGraph: { title: fullTitle, type: 'website', description, images: image ? [image] : undefined },
+    openGraph: { title: fullTitle, type: 'website', description, images: [card] },
+    twitter: { card: 'summary_large_image', title: fullTitle, description, images: [card] },
     robots: { index, follow: index, 'max-image-preview': 'standard' },
     alternates: canonical ? { canonical } : undefined,
   }

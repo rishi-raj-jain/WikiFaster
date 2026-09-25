@@ -30,8 +30,6 @@ export const articles = pgTable(
   ],
 )
 
-export type Article = typeof articles.$inferSelect
-
 /**
  * Each article's freely licensed lead image, by page ID: the file name on
  * Wikipedia or Commons ("Aristotle_Altemps_Inv8575.jpg"). Loaded from the
@@ -41,6 +39,16 @@ export type Article = typeof articles.$inferSelect
 export const articleImages = pgTable('article_images', { id: bigint('id', { mode: 'number' }).primaryKey(), file: text('file').notNull(), stored: text('stored') }, (table) => [
   index('article_images_file_idx').on(table.file),
 ])
+
+/**
+ * The lead image of the row aliased `from` as `{ file, stored }`, or null: one
+ * probe of the `article_images` primary key. The alias is written out because
+ * Drizzle renders `articles.id` as a bare "id" in a one-table select, which the
+ * subquery would read as its own.
+ */
+export function leadImage(from = 'articles') {
+  return sql<{ file: string; stored: string | null } | null>`(SELECT json_build_object('file', file, 'stored', stored) FROM article_images i WHERE i.id = ${sql.raw(from)}.id)`
+}
 
 /**
  * Articles whose lead image still needs copying into the bucket, drained by the
@@ -63,6 +71,7 @@ export const imageQueue = pgTable(
       .where(sql`${table.attempts} < 5`),
   ],
 )
+
 /**
  * Lexicon behind typo suggestions: title words and how many titles use each,
  * trigram-indexed for fuzzy lookup. Rebuilt by `npm run db:lexicon`.

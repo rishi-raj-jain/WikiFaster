@@ -19,7 +19,7 @@ export function splitSeeAlso(item: string): { title: string; rest: string } {
  * parenthetical ("Air Berlin (IATA airline code AB)" -> "Air Berlin"), and
  * the text before a dash.
  */
-export function entryTitles(item: string): string[] {
+function entryTitles(item: string): string[] {
   const beforeComma = item.split(/,\s/)[0].trim()
   const bare = beforeComma.replace(/\s*\([^)]*\)$/, '').trim()
   const beforeDash = item.split(/\s+[–—-]\s+/)[0].trim()

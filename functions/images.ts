@@ -25,8 +25,8 @@
 import { attachDatabasePool } from '@neon/functions'
 import { parseTriggerInvocation } from '@neon/functions/triggers'
 import { AwsClient } from 'aws4fetch'
-import { createHash } from 'node:crypto'
 import { Pool } from 'pg'
+import { createHash } from 'node:crypto'
 
 const BUCKET = 'assets'
 /** The one width copied, a standard Wikimedia thumbnail size. The app shows it everywhere (see `imageSrc` in src/lib/links.ts). */
@@ -45,7 +45,7 @@ const BUDGET_MS = 50_000
 const DEADLINE_MS = 58_000
 const MAX_ATTEMPTS = 5
 // Wikimedia asks every client to identify itself.
-const USER_AGENT = 'wiki-faster/1.0 (https://github.com/rishi-raj-jain/wiki-faster)'
+const USER_AGENT = 'WikiFaster/1.0 (https://github.com/rishi-raj-jain/WikiFaster)'
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 })
 attachDatabasePool(pool)

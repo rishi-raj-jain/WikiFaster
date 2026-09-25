@@ -2,5 +2,9 @@
   "semi": false,
   "printWidth": 220,
   "singleQuote": true,
-  "plugins": ["prettier-plugin-organize-imports", "prettier-plugin-tailwindcss"]
+  "plugins": ["@ianvs/prettier-plugin-sort-imports", "prettier-plugin-tailwindcss"],
+  "importOrder": ["^@/", "<THIRD_PARTY_MODULES>", "<BUILTIN_MODULES>", "^[.]"],
+  "importOrderTypeScriptVersion": "5.0.0",
+  "tailwindStylesheet": "./src/app/globals.css",
+  "tailwindFunctions": ["cn"]
 }

@@ -1,4 +1,4 @@
-import { SITE_URL, searchHref } from '@/lib/links'
+import { searchHref, SITE_URL } from '@/lib/links'
 
 /** The OpenSearch description Wikipedia links from every page, so browsers can offer this site as a search engine. */
 export function GET() {

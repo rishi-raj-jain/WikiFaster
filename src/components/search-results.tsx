@@ -1,19 +1,19 @@
 'use client'
 
-import { ResultsLoading } from '@/components/loading'
 import { DbTimingBar } from '@/components/db-timing'
+import { ResultsLoading } from '@/components/loading'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import { imageSrc, searchHref, wikiHref } from '@/lib/links'
-import type { SearchHit } from '@/lib/queries'
-import type { SearchPayload } from '@/lib/search'
+import type { SearchHit, SearchPayload } from '@/lib/search'
 import { cn } from 'cn'
 import { SearchIcon, XIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
+/** Results per page. The same as `PAGE_SIZE` in src/lib/search/results.ts, which is server-only. */
 const PAGE_SIZE = 20
 
 /** Renders a ts_headline snippet whose matches are wrapped in \u0001…\u0002, as text with bold spans. */
@@ -40,17 +40,17 @@ function Result({ hit }: { hit: SearchHit }) {
     <li className="flex min-w-0 gap-3">
       {hit.image ? (
         <Link href={wikiHref(hit.title)} tabIndex={-1} aria-hidden className="shrink-0">
-          <img src={imageSrc(hit.image)} alt="" loading="lazy" decoding="async" className="border-border-subtle size-24 rounded-xs border bg-white object-cover" />
+          <img src={imageSrc(hit.image)} alt="" loading="lazy" decoding="async" className="size-24 rounded-xs border border-border-subtle bg-white object-cover" />
         </Link>
       ) : null}
       <div className="min-w-0">
         <div className="text-[1.0625rem] leading-snug">
           <Link href={wikiHref(hit.title)}>{hit.title}</Link>
         </div>
-        <div className="text-foreground mt-0.5 text-sm leading-[1.6]">
+        <div className="mt-0.5 text-sm leading-[1.6] text-foreground">
           <Snippet text={hit.snippet} />
         </div>
-        <div className="text-subtle mt-0.5 text-[0.8125rem]">
+        <div className="mt-0.5 text-[0.8125rem] text-subtle">
           {Math.max(1, Math.round(hit.bytes / 1024)).toLocaleString()} KB ({hit.words.toLocaleString()} words)
         </div>
       </div>
@@ -96,7 +96,7 @@ function Summary({ payload }: { payload: SearchPayload }) {
   if (!count || count.count == null || rows.length === 0) return null
   const first = (page - 1) * PAGE_SIZE + 1
   return (
-    <p className="text-subtle text-[0.8125rem]">
+    <p className="text-[0.8125rem] text-subtle">
       Results {first.toLocaleString()} – {(first + rows.length - 1).toLocaleString()} of {count.exact ? '' : 'about '}
       <b className="text-foreground">{count.count.toLocaleString()}</b>
     </p>
@@ -107,7 +107,7 @@ function Summary({ payload }: { payload: SearchPayload }) {
 function SearchTiming({ q, payload, loading }: { q: string; payload: SearchPayload | null; loading: boolean }) {
   if (!q) return <DbTimingBar status="type to search, every keystroke queries Postgres" />
   if (!payload || payload.error) return <DbTimingBar status={loading ? 'querying…' : 'the query failed'} />
-  return <DbTimingBar dbMs={payload.dbMs} totalMs={payload.ms} queries={payload.queries} dim={loading} />
+  return <DbTimingBar totalMs={payload.ms} dim={loading} />
 }
 
 /**
@@ -144,7 +144,7 @@ export function SearchResults({ initialQuery, initialPage, exactTitle }: { initi
       })
       .catch((err) => {
         if (controller.signal.aborted) return
-        setPayload({ q: query.q, page: query.page, rows: [], mode: 'fulltext', count: null, ms: 0, dbMs: 0, queries: 0, error: err instanceof Error ? err.message : 'Search failed', corrected: null, suggestion: null })
+        setPayload({ q: query.q, page: query.page, rows: [], mode: 'fulltext', count: null, ms: 0, error: err instanceof Error ? err.message : 'Search failed', corrected: null, suggestion: null })
         setLoading(false)
       })
     return () => controller.abort()
@@ -190,7 +190,7 @@ export function SearchResults({ initialQuery, initialPage, exactTitle }: { initi
       >
         <ButtonGroup className="w-full">
           <InputGroup className="h-9 rounded-l-xs rounded-r-none border-(--wiki-input-border) has-[[data-slot=input-group-control]:focus-visible]:shadow-[inset_0_0_0_1px_var(--wiki-progressive)] has-[[data-slot=input-group-control]:focus-visible]:ring-0">
-            <InputGroupAddon className="text-subtle pl-2.5">
+            <InputGroupAddon className="pl-2.5 text-subtle">
               <SearchIcon className="size-4.5" />
             </InputGroupAddon>
             <InputGroupInput
@@ -217,7 +217,7 @@ export function SearchResults({ initialQuery, initialPage, exactTitle }: { initi
                     setInput('')
                     search('', 1, false, true)
                   }}
-                  className="text-subtle rounded-full"
+                  className="rounded-full text-subtle"
                 >
                   <XIcon />
                 </InputGroupButton>
@@ -283,7 +283,7 @@ export function SearchResults({ initialQuery, initialPage, exactTitle }: { initi
         {loading && rows.length === 0 ? (
           <ResultsLoading />
         ) : payload?.error ? (
-          <p className="text-destructive text-sm">{payload.error}</p>
+          <p className="text-sm text-destructive">{payload.error}</p>
         ) : query.q && payload && rows.length === 0 ? (
           <p className="text-sm">There were no results matching the query.</p>
         ) : (

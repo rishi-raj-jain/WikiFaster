@@ -16,7 +16,7 @@ export type Prefs = {
   appearance: 'pinned' | 'hidden'
 }
 
-export const DEFAULT_PREFS: Prefs = { text: 'standard', width: 'standard', theme: 'light', toc: 'pinned', appearance: 'pinned' }
+const DEFAULT_PREFS: Prefs = { text: 'standard', width: 'standard', theme: 'light', toc: 'pinned', appearance: 'pinned' }
 
 const STORAGE_KEY = 'wiki-prefs'
 

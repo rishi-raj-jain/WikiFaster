@@ -28,7 +28,7 @@ const SECTION_NAMES = /^(references|notes|citations|footnotes|sources|bibliograp
  * brackets and separators: "Albert Einstein ( ; ; 14 March 1879 …)",
  * "The Paris Commune (, ) was". Remove what is left of them for display.
  */
-export function tidy(text: string): string {
+function tidy(text: string): string {
   return text
     .replace(/\s*\(\s*(?:[;,:]\s*)*\)/g, '')
     .replace(/\(\s*(?:[;,]\s*)+/g, '(')

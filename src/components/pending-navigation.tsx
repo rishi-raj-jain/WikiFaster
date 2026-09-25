@@ -3,7 +3,7 @@
 import { ArticleShell, MainShell, SearchShell } from '@/components/loading'
 import { MAIN_PAGE, SPECIAL_RANDOM, SPECIAL_SEARCH, titleFromSegments } from '@/lib/links'
 import { usePathname } from 'next/navigation'
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useState } from 'react'
 
 const StartContext = createContext<(href: string) => void>(() => {})
 
@@ -14,11 +14,7 @@ export function useStartNavigation() {
 
 function titleOf(pathname: string): string {
   if (!pathname.startsWith('/wiki/')) return MAIN_PAGE
-  try {
-    return titleFromSegments(pathname.slice('/wiki/'.length).split('/'))
-  } catch {
-    return pathname.slice('/wiki/'.length)
-  }
+  return titleFromSegments(pathname.slice('/wiki/'.length).split('/'))
 }
 
 /** The page being navigated to, drawn the moment the link is clicked: the same shells the server streams first. */
@@ -30,6 +26,17 @@ function PendingPage({ pathname }: { pathname: string }) {
 }
 
 /**
+ * Reports each path the router commits. It reads `usePathname()` inside its
+ * own Suspense boundary, so the prerendered shell does not need the URL.
+ */
+function PathWatcher({ onCommit }: { onCommit: () => void }) {
+  const pathname = usePathname()
+  // Before paint, so the placeholder and the new page never show together.
+  useLayoutEffect(onCommit, [pathname, onCommit])
+  return null
+}
+
+/**
  * Makes every navigation visible at once: a click on a link to another page
  * swaps the current page for that page's placeholder until the router commits
  * the server's streamed response. The header stays, and its search box starts
@@ -37,21 +44,17 @@ function PendingPage({ pathname }: { pathname: string }) {
  * path (search paging, "Did you mean") are left to their handlers.
  */
 export function PendingNavigation({ header, children }: { header: React.ReactNode; children: React.ReactNode }) {
-  const pathname = usePathname()
-  const [pending, setPending] = useState<{ from: string; to: string } | null>(null)
+  const [pending, setPending] = useState<string | null>(null)
 
-  // The router committed the new page: drop the placeholder in the same render.
-  if (pending && pending.from !== pathname) setPending(null)
+  // The router committed a new path: drop the placeholder.
+  const committed = useCallback(() => setPending(null), [])
 
-  const start = useCallback(
-    (href: string) => {
-      const url = new URL(href, window.location.href)
-      if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return
-      setPending({ from: pathname, to: url.pathname })
-      window.scrollTo(0, 0)
-    },
-    [pathname],
-  )
+  const start = useCallback((href: string) => {
+    const url = new URL(href, window.location.href)
+    if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return
+    setPending(url.pathname)
+    window.scrollTo(0, 0)
+  }, [])
 
   // Link clicks that the router took over (it calls preventDefault), in the bubble phase so that has happened.
   useEffect(() => {
@@ -66,9 +69,12 @@ export function PendingNavigation({ header, children }: { header: React.ReactNod
 
   return (
     <StartContext value={start}>
+      <Suspense fallback={null}>
+        <PathWatcher onCommit={committed} />
+      </Suspense>
       {header}
       <div hidden={pending != null}>{children}</div>
-      {pending ? <PendingPage pathname={pending.to} /> : null}
+      {pending ? <PendingPage pathname={pending} /> : null}
     </StartContext>
   )
 }

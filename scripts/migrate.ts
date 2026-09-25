@@ -9,9 +9,9 @@
  *   npm run db:migrate -- drizzle/0002_search.sql
  */
 
+import { Client } from 'pg'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { Client } from 'pg'
 import { describeUrl, unpooledUrl } from './env'
 
 /**

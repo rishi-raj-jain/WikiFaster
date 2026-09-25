@@ -1,7 +1,7 @@
 import { PendingNavigation } from '@/components/pending-navigation'
 import { PREFS_SCRIPT, PrefsProvider } from '@/components/prefs'
 import { SiteHeader } from '@/components/site-header'
-import { LICENSE_URL, SITE_URL } from '@/lib/links'
+import { LICENSE_URL, OG_IMAGE, SITE_URL } from '@/lib/links'
 import type { Metadata, Viewport } from 'next'
 import { Geist_Mono } from 'next/font/google'
 import './globals.css'
@@ -15,7 +15,8 @@ export const metadata: Metadata = {
   },
   referrer: 'origin-when-cross-origin',
   formatDetection: { telephone: false },
-  openGraph: { type: 'website' },
+  openGraph: { type: 'website', images: [OG_IMAGE] },
+  twitter: { card: 'summary_large_image', images: [OG_IMAGE] },
 }
 
 /** Neon UI's mono face, for the timing bar's numbers. */

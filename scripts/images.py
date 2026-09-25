@@ -30,7 +30,7 @@ from ingest import connect, database_url
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DUMP_URL = "https://dumps.wikimedia.org/enwiki/{dump}/enwiki-{dump}-page_props.sql.gz"
 # Wikimedia asks every client to identify itself.
-USER_AGENT = "wiki-faster/1.0 (https://github.com/rishi-raj-jain/wiki-faster)"
+USER_AGENT = "WikiFaster/1.0 (https://github.com/rishi-raj-jain/WikiFaster)"
 PROPNAME = b"page_image_free"
 
 # One (pp_page,'pp_propname','pp_value',pp_sortkey) row. Strings are MySQL-escaped.

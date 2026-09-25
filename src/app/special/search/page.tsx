@@ -1,11 +1,15 @@
-import { FOOTER_LINKS, Footer, LICENSE_LINE, PageLayout, TitleBar } from '@/components/page-layout'
+import { SearchShell } from '@/components/loading'
+import { Footer, FOOTER_LINKS, LICENSE_LINE, PageLayout, TitleBar } from '@/components/page-layout'
 import { SearchResults } from '@/components/search-results'
-import { SPECIAL_SEARCH, searchHref, wikiHref } from '@/lib/links'
-import { canonicalTitle } from '@/lib/queries'
+import { db } from '@/db'
+import { articles } from '@/db/schema'
+import { searchHref, SPECIAL_SEARCH, wikiHref } from '@/lib/links'
 import { pageNumber } from '@/lib/search'
 import { pageMetadata } from '@/lib/seo'
+import { sql } from 'drizzle-orm'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> }
 
@@ -15,7 +19,8 @@ function one(value: string | string[] | undefined): string {
 
 /**
  * Special:Search, served at `/wiki/Special:Search` through a rewrite in
- * `next.config.ts`. It reads the query string and renders on every request.
+ * `next.config.ts`. The query string is only known per request, so the page
+ * streams: the search shell first, then the results or the jump to an article.
  * Like Wikipedia, it is `noindex,nofollow` with the search URL as canonical.
  */
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
@@ -23,11 +28,31 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   return pageMetadata(q ? `${q} - Search results - Wikipedia` : 'Search - Wikipedia', { canonical: q ? searchHref(q, { fulltext: true }) : wikiHref(SPECIAL_SEARCH), index: false })
 }
 
-/** An exact title goes straight to the article (Wikipedia's "Go"), unless `fulltext` is set. */
-export default async function SearchPage({ searchParams }: Props) {
+export default function SearchPage({ searchParams }: Props) {
+  return (
+    <Suspense fallback={<SearchShell />}>
+      <Search searchParams={searchParams} />
+    </Suspense>
+  )
+}
+
+/**
+ * An exact title in any case goes straight to the article (Wikipedia's "Go"),
+ * unless `fulltext` is set. The stored spelling is found through the
+ * lower(title) index, preferring the one typed exactly.
+ */
+async function Search({ searchParams }: Props) {
   const params = await searchParams
   const q = one(params.search).trim().slice(0, 300)
-  const exact = q ? await canonicalTitle(q) : null
+  const [found] = q
+    ? await db
+        .select({ title: articles.title })
+        .from(articles)
+        .where(sql`lower(${articles.title}) = lower(${q})`)
+        .orderBy(sql`${articles.title} = ${q} DESC`)
+        .limit(1)
+    : []
+  const exact = found?.title ?? null
   if (exact && !one(params.fulltext)) redirect(wikiHref(exact))
   return (
     <PageLayout footer={<Footer lines={[LICENSE_LINE]} links={FOOTER_LINKS} />}>

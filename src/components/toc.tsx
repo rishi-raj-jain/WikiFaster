@@ -1,14 +1,13 @@
 'use client'
 
+import { useLazyOpen } from '@/components/lazy-open'
 import { PinnableHeader } from '@/components/pinnable-header'
 import { usePrefs } from '@/components/prefs'
 import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import type { Section } from '@/lib/wikitext'
 import { cn } from 'cn'
 import { ListIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 
 const TOP = '(Top)'
 
@@ -33,7 +32,7 @@ function useActiveSection(sections: Section[]): string {
   return active
 }
 
-function TocList({ sections, onNavigate }: { sections: Section[]; onNavigate?: () => void }) {
+export function TocList({ sections, onNavigate }: { sections: Section[]; onNavigate?: () => void }) {
   const active = useActiveSection(sections)
   const entries = [{ id: '', title: TOP }, ...sections]
   return (
@@ -50,7 +49,7 @@ function TocList({ sections, onNavigate }: { sections: Section[]; onNavigate?: (
               }
               onNavigate?.()
             }}
-            className={cn('block py-1.5 leading-snug', section.id === active ? 'text-foreground! font-bold' : section.id ? '' : 'text-foreground!')}
+            className={cn('block py-1.5 leading-snug', section.id === active ? 'font-bold text-foreground!' : section.id ? '' : 'text-foreground!')}
           >
             {section.title}
           </a>
@@ -65,24 +64,28 @@ export function TocSidebar({ sections }: { sections: Section[] }) {
   const { setPref } = usePrefs()
   return (
     <nav aria-label="Contents" className="sticky top-6 pl-4 text-sm">
-      <ScrollArea className="max-h-[calc(100dvh-3rem)] [&>[data-slot=scroll-area-viewport]]:max-h-[inherit]">
+      <div className="max-h-[calc(100dvh-3rem)] [scrollbar-width:thin] overflow-y-auto overscroll-contain">
         <div className="pr-3">
           <PinnableHeader label="Contents" pinned onToggle={() => setPref('toc', 'hidden')} />
           <TocList sections={sections} />
         </div>
-      </ScrollArea>
+      </div>
     </nav>
   )
 }
 
+const loadTocPopover = () => import('@/components/toc-popover')
+const TocPopover = lazy(loadTocPopover)
+
 /**
  * The list icon left of the title, shown when Contents is not pinned (and
  * always below 1120px). While the sections stream in (`sections` is null) it
- * holds its place, disabled, so the title does not move when they arrive.
+ * holds its place, disabled, so the title does not move when they arrive. The
+ * popover's code loads on first use (`useLazyOpen`).
  */
 export function TocButton({ sections }: { sections: Section[] | null }) {
-  const { prefs, setPref } = usePrefs()
-  const [open, setOpen] = useState(false)
+  const { prefs } = usePrefs()
+  const [opened, trigger] = useLazyOpen(loadTocPopover)
   const className = cn('mr-2 size-8 shrink-0 self-center rounded-xs', prefs.toc === 'pinned' && 'min-[1120px]:hidden')
   if (sections === null) {
     return (
@@ -92,19 +95,15 @@ export function TocButton({ sections }: { sections: Section[] | null }) {
     )
   }
   if (sections.length === 0) return null
+  const button = (
+    <Button variant="ghost" size="icon" aria-label="Toggle the table of contents" className={className} {...(opened ? {} : trigger)}>
+      <ListIcon className="size-5" />
+    </Button>
+  )
+  if (!opened) return button
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="ghost" size="icon" aria-label="Toggle the table of contents" className={className} />}>
-        <ListIcon className="size-5" />
-      </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={6} className="ring-border-subtle w-72 rounded-xs p-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)] ring-1">
-        <ScrollArea className="max-h-[70dvh] [&>[data-slot=scroll-area-viewport]]:max-h-[inherit]">
-          <div className="px-4 py-3">
-            <PinnableHeader label="Contents" pinned={false} onToggle={() => setPref('toc', 'pinned')} />
-            <TocList sections={sections} onNavigate={() => setOpen(false)} />
-          </div>
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
+    <Suspense fallback={button}>
+      <TocPopover sections={sections} className={className} />
+    </Suspense>
   )
 }

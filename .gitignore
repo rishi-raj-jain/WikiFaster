@@ -1,20 +1,18 @@
+# Dependencies and build output
 node_modules/
 .next/
 .vercel
+*.tsbuildinfo
 
+# Secrets
 .env*
 !.env.example
 
+# Local data and tooling
 data/
 venv/
 __pycache__/
 Logs/
-*.tsbuildinfo
 .playwright-mcp/
 .DS_Store
-npm-debug.log*
-migrate.log
-migrate-search.log
-dev.log
-migrate-title.log
-prewarm.log
+*.log
