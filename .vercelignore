@@ -1,13 +1,10 @@
 node_modules
 .next
 .vercel
-
 .env*
 !.env.example
-
 data
 venv
-Logs
 *.log
 *.tsbuildinfo
 .playwright-mcp
