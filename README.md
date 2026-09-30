@@ -1,19 +1,10 @@
 # Wikipedia on Neon
 
-All 6,407,814 articles of English Wikipedia (the 1 November 2023 dump), served live from [Neon Postgres](https://neon.com) with a UI that mirrors Wikipedia's Vector 2022 skin. Articles, suggestions and searches are read from the database on request.
+All 6,407,814 articles of English Wikipedia (the 1 November 2023 dump), served live from [Neon Postgres](https://neon.com) in a UI that mirrors Wikipedia's Vector 2022 skin.
 
 ## How a request is served
 
-Pages are cached whole, until they are revalidated, and nothing below them is cached. The homepage and the article pages cache their full render with `use cache` and a `forever` cache profile (no time-based revalidation, see `next.config.ts`), which Vercel serves as ISR: one copy for every instance, from the CDN, until the page is revalidated. Browsers keep no copy, so each full page load asks Vercel. The homepage is prerendered at build. An article's first visit waits while a Vercel Function in `cle1` (Cleveland, next to the Neon compute in `us-east-2`) renders it. Every later visit gets the finished page from the cache as plain HTML, with no function work and no queries. Search, suggestions and Special:Random are never cached. No page streams: each is sent whole, with its metadata in the `<head>`.
-
-`POST /api/revalidate` refreshes one cached page, given its exact path in a JSON body: `{"path": "/wiki/Albert_Einstein"}`, or `{"path": "/"}` for the homepage (`/wiki/Main_Page` is a separate path). It needs `Authorization: Bearer $REVALIDATE_SECRET`. The path can be spelled as the browser requests it (`/wiki/AT%26T`) or decoded (`/wiki/AT&T`). Only that path is refreshed, not other spellings of it such as `/wiki/albert_einstein`, and route patterns like `/wiki/[...title]` are refused. The next visit to the path waits for the new render, and later visits get it from the cache:
-
-```bash
-curl -X POST -H "Authorization: Bearer $REVALIDATE_SECRET" -H "Content-Type: application/json" \
-  -d '{"path": "/wiki/Albert_Einstein"}' https://wikifaster.vercel.app/api/revalidate
-```
-
-A [Vercel Cron Job](https://vercel.com/docs/cron-jobs) in `vercel.json` calls `/api/cron/main-page` every 12 hours, which refreshes `/` and `/wiki/Main_Page` with new picks.
+The homepage and article pages cache their full render with `use cache` and a `forever` profile ([`next.config.ts`](next.config.ts)), which Vercel serves from its CDN as ISR until the page is revalidated. An article's first visit renders on a Vercel Function in `cle1`, next to the Neon compute in `us-east-2`. Later visits get plain HTML from the cache with no queries. Search, suggestions, Special:Random and the results under a missing title always query Neon. No page streams, so metadata stays in the `<head>`.
 
 ```mermaid
 flowchart LR
@@ -28,118 +19,90 @@ flowchart LR
   B -.->|lead images, through the CDN| S
 ```
 
-| Step                  | Main Page `/`                                                                                                              | Search `/wiki/Special:Search?search=…`                                                                                                                                       | Article `/wiki/<title>`                                                                                                                                                           |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Vercel CDN         | The whole page, prerendered at build and kept until revalidated (every 12 hours by cron), so everyone sees the same picks. | Rewritten to `/special/search`. Nothing is sent until the page is rendered.                                                                                                  | A cache hit is the finished page.                                                                                                                                                 |
-| 2. Vercel Function    | Only after a revalidation: the next visit waits for a new render.                                                          | Reads the query. An exact title jumps straight to the article ("Go"). Otherwise the page is rendered with the first results in it, and later searches come from the browser. | On a miss: renders the article, then stores the page until revalidated. A wrong spelling caches as a meta refresh to the stored title. `/wiki/Main_Page` is prerendered like `/`. |
-| 3. Neon Postgres      | Five queries in parallel (count, featured, did you know, random, on this day), once per render.                            | Every search: the exact-title check, then the query analysis, BM25 results and the exact count, in parallel. Suggestions come from `/api/suggest` on every keystroke.        | Once per render: the article, its alphabetical neighbours and the stored spelling of the title in one round trip, then the "See also" link check.                                 |
-| 4. After the response | Queues lead images not yet copied into Object Storage.                                                                     | Same, for the images in the results and suggestions.                                                                                                                         | Same, for the lead image.                                                                                                                                                         |
-| Timing bar            | What the render's queries cost, stored with the page.                                                                      | The search's total time (also in a `Server-Timing` header).                                                                                                                  | What the render's queries cost, stored with the page.                                                                                                                             |
+| Step     | Main Page `/`                                                              | Search `/wiki/Special:Search?search=…`                                                | Article `/wiki/<title>`                                                                                                                                       |
+| -------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CDN      | Prerendered at build, refreshed every 12 hours by cron.                    | Never cached.                                                                         | Cached after the first visit.                                                                                                                                 |
+| Function | Renders on the first visit after a revalidation.                           | An exact title redirects to the article ("Go"). Otherwise renders the first results.  | Renders on a miss. A differently cased title caches as a meta refresh to the stored title.                                                                    |
+| Neon     | Five parallel queries: count, featured, did you know, random, on this day. | Exact-title check, then query analysis, BM25 results and the exact count in parallel. | Article, neighbours and stored spelling in one round trip, then the "See also" link check. A missing title fetches results from `/api/search` in the browser. |
 
-Special:Random picks an article on every visit and answers with an HTTP redirect to it. Social cards (`/og.png` and `/og/<title>`) are images the CDN keeps for a day. Lead image copies load through `/assets/thumbs/<hash>/250`, which the CDN keeps for a year in every region, so they come from next to the visitor rather than from the bucket in `us-east-2`.
+After responding, every route queues the lead images it showed that are not yet in Object Storage.
+
+Other routes: Special:Random redirects to a random article. Social cards (`/og.png`, `/og/<title>`) are cached for a day. Lead image copies load through `/assets/thumbs/<hash>/250`, which the CDN caches for a year.
+
+### Revalidation
+
+`POST /api/revalidate` refreshes one exact path, encoded (`/wiki/AT%26T`) or decoded (`/wiki/AT&T`). Other spellings of a title are separate paths, as are `/` and `/wiki/Main_Page`. Route patterns are refused.
+
+```bash
+curl -X POST -H "Authorization: Bearer $REVALIDATE_SECRET" -H "Content-Type: application/json" \
+  -d '{"path": "/wiki/Albert_Einstein"}' https://wikifaster.vercel.app/api/revalidate
+```
+
+A [Vercel Cron Job](https://vercel.com/docs/cron-jobs) in [`vercel.json`](vercel.json) calls `/api/cron/main-page` every 12 hours to refresh `/` and `/wiki/Main_Page` with new picks.
 
 ## Design notes
 
-- **[Next.js 16](https://nextjs.org)** App Router with React Server Components and [Cache Components](https://nextjs.org/docs/app/getting-started/caching): the homepage and article pages cache their whole render until revalidated (`use cache`), with nothing cached below them. No route streams: no page has a Suspense boundary (routes that wait on a query set `instant = false`), so metadata has nothing to stream past and stays in the `<head>`, and a page is plain HTML with its content in the first paint. A streamed boundary would also cost time, since React holds one over 12.8 KB until 300 ms after its placeholder paints. A click still shows the next page's placeholder immediately.
-- **[Drizzle](https://orm.drizzle.team) on `@neondatabase/serverless`** (SQL over HTTP, no pool), from [`src/db/index.ts`](src/db/index.ts). Components query `db` directly: the article page in [`article-view.tsx`](src/components/article-view.tsx), the Main Page in [`main-page.tsx`](src/components/main-page.tsx), suggestions in [`/api/suggest`](src/app/api/suggest/route.ts), and search in [`src/lib/search/`](src/lib/search). Simple lookups use the query builder and the rest is SQL in `` sql`…` `` templates. `db.batch` sends several statements in one round trip, which is how search pins its plans: a `set_config(…, true)` statement ahead of the query sets its planner settings and statement timeout for that transaction only.
-- **[shadcn/ui](https://ui.shadcn.com)** components (Base UI), themed onto Wikipedia's Codex palette in [`src/tokens.css`](src/tokens.css): 2px corners, `#36c` links, system sans-serif at 16/26px, serif titles and section headings. The Appearance menu (text size, width, light/dark/automatic) and the pinnable Contents and Appearance panels behave like Vector's, with the same 1120px breakpoint.
-- **Articles are plain text.** The dump keeps paragraphs, list items, section headings and categories as lines, and [`src/lib/wikitext.ts`](src/lib/wikitext.ts) turns them back into sections, a table of contents and the category box. Heading levels were not kept, so every heading renders as a section heading. "See also" items become links, blue or red depending on whether the article exists (one query per page).
-- **Lead images come from `page_props`.** The Hugging Face text has no images, not even file names. Wikipedia's `page_props` dump names each article's freely licensed lead image by page ID, which is also `articles.id`, so it loads into `article_images` without matching titles. Each article, search result and suggestion reads its image in the same query as its text, through a primary-key probe. Each image links to its file page on Wikipedia for credit.
-- **Images are copied into Neon Object Storage.** A [Function Trigger](https://neon.com/docs/compute/functions/triggers/overview) runs the `images` function ([`functions/images.ts`](functions/images.ts)) every minute. It drains `image_queue` for most of the minute: for each queued article it fetches the 250px thumbnail straight from Wikimedia's thumbnail CDN (through Wikipedia's file redirect for files not on Commons), uploads it as it came to the public `assets` bucket, and only then sets `article_images.stored`, for every article that uses that file. Articles people view go first (the app queues an image it had to load from Wikimedia), then the backfill of every image, largest articles first. Until an image is copied, pages load it from Wikimedia. Wikimedia sets the pace: its [Robot policy](https://wikitech.wikimedia.org/wiki/Robot_policy) allows 2 media downloads at a time, and a 429 comes with a Retry-After that the function waits out, so the backfill runs at about 550 files a minute. A file that 404s (deleted since the dump) is dropped, and other failures are retried up to 5 times.
-- **Every page shows what its queries cost.** Each page times its queries with `performance.now()`, and the timing bar under its tabs shows the total, including the round trips to Neon. `/api/search` and `/api/suggest` send the total in a `Server-Timing` header.
-- **Every article has its own social card.** [`src/app/og/[...title]/route.tsx`](src/app/og/%5B...title%5D/route.tsx) draws the title, opening sentence and lead image under the WikiFaster name with `next/og`, and the CDN keeps each one for a day. Other pages share the WikiFaster card at [`/og.png`](src/app/og.png/route.tsx).
-- **Interactive UI loads on first use.** The search combobox, the main menu and the Appearance and Contents popovers render as plain HTML, and their code loads when they are first pointed at, focused or clicked ([`useLazyOpen`](src/components/lazy-open.tsx), [`SearchField`](src/components/search-field.tsx)). The Contents scroll area and the Appearance radios are native elements. A page hydrates little more than React and Next.js themselves.
-- **No debounce.** Suggestions and results are queried on every keystroke, and each new request aborts the one before it.
-- **Disambiguation pages link their entries.** On pages whose lead says "may refer to", each entry links to its article when that article exists (one query for the whole page).
+- **[Next.js 16](https://nextjs.org) with [Cache Components](https://nextjs.org/docs/app/getting-started/caching).** No page has a Suspense boundary (`instant = false`), so each is sent whole with its content in the first paint. A streamed boundary over 12.8 KB would otherwise hold its reveal until 300 ms after the placeholder paints.
+- **[Drizzle](https://orm.drizzle.team) on `@neondatabase/serverless`** (SQL over HTTP) from [`src/db/index.ts`](src/db/index.ts). Components query `db` directly. Search uses `db.batch` to run `set_config(…, true)` ahead of its queries, which pins planner settings and timeouts for that transaction.
+- **[shadcn/ui](https://ui.shadcn.com) (Base UI) themed to Wikipedia's Codex palette** in [`src/tokens.css`](src/tokens.css). The Appearance menu and pinnable Contents and Appearance panels behave like Vector's, with the same 1120px breakpoint.
+- **Articles are plain text.** [`src/lib/wikitext.ts`](src/lib/wikitext.ts) rebuilds sections, the table of contents and categories from the dump's lines. "See also" and disambiguation entries link blue or red depending on whether the article exists.
+- **Lead images come from Wikipedia's `page_props` dump**, keyed by page ID, which matches `articles.id`. Each links to its Wikipedia file page for credit. [`lead-image.tsx`](src/components/lead-image.tsx) shimmers until the image loads, and on screens under 640px fills a fixed 4:5 frame so the text never shifts.
+- **Images are copied into Neon Object Storage.** A [Function Trigger](https://neon.com/docs/compute/functions/triggers/overview) runs [`functions/images.ts`](functions/images.ts) every minute to drain `image_queue`, viewed articles first, then a backfill by article size. It copies 250px thumbnails into the public `assets` bucket at the 2 concurrent downloads Wikimedia's [Robot policy](https://wikitech.wikimedia.org/wiki/Robot_policy) allows (about 550 files a minute). It waits out 429s, drops files that return 404 or 410, and retries other failures up to 5 times. Until an image is copied, pages load it from Wikimedia.
+- **Every page shows its query time.** The timing bar under the tabs shows time spent on Neon, round trips included. `/api/search` and `/api/suggest` also send it as `Server-Timing`.
+- **Interactive UI loads on first use.** The search combobox, main menu and popovers render as plain HTML and load their code on first hover, focus or click ([`useLazyOpen`](src/components/lazy-open.tsx), [`SearchField`](src/components/search-field.tsx)).
+- **No debounce.** Suggestions and results query on every keystroke, and each request aborts the one before it.
 
 ### Search
 
-Every query shape has an index behind it:
+| Query                                    | Index                                                  | How                                                                     |
+| ---------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Exact title, wrong case                  | `articles_title_key`, `lower(title)`                   | Direct lookup, redirecting to the stored spelling.                      |
+| Suggestions, 1-2 character queries       | `articles_title_prefix_idx` (`text_pattern_ops`)       | Prefix walk, exact match first, then longest articles.                  |
+| Substrings, misspellings, stopwords only | `articles_title_trgm_idx` (trigram GIN)                | `LIKE '%…%'`, then trigram similarity.                                  |
+| Full text, ranked                        | `articles_search_bm25` (`lakebase_bm25`)               | Top BM25 candidates that match every word.                              |
+| Rare ANDs, phrases, exact counts         | `articles_search_gin` (GIN)                            | Collects all matches when BM25 falls short, and counts via bitmap scan. |
+| Typos ("einstien")                       | `search_terms` lexicon (trigram GIN + `fuzzystrmatch`) | Up to 3 edits, only toward much more common words.                      |
 
-| Query                            | Index                                                         | How                                                                                                                      |
-| -------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Exact title (`/wiki/…`, "Go")    | `articles_title_key` (unique btree)                           | Direct lookup. A wrong-case title redirects through `lower(title)`.                                                      |
-| Suggestions while typing         | `articles_title_prefix_idx` (`lower(title) text_pattern_ops`) | Prefix walk, exact match first, then the longest articles as a stand-in for popularity.                                  |
-| Substrings and misspelled titles | `articles_title_trgm_idx` (trigram GIN)                       | `LIKE '%…%'` when prefixes run out, trigram similarity when nothing else matches.                                        |
-| 1-2 character queries            | `articles_title_prefix_idx`                                   | Title prefix.                                                                                                            |
-| Only stopwords ("The Who")       | `articles_title_trgm_idx`                                     | The english tsvector indexes none of those words, so titles containing the phrase are matched instead.                   |
-| Full text, ranked                | `articles_search_bm25` (`lakebase_bm25`)                      | The top candidates come straight off the BM25 index and are kept when they match every word.                             |
-| Full text, rare ANDs and phrases | `articles_search_gin` (GIN)                                   | When the ranked candidates leave the page short, all matches are collected through GIN and ranked exactly.               |
-| Exact result counts              | `articles_search_gin`                                         | A bitmap scan reports how many rows it matched without reading the table, so "Results 1 – 20 of N" is exact at any size. |
-| Typos ("einstien")               | `search_terms` lexicon (trigram GIN + `fuzzystrmatch`)        | Up to 3 edits for long words, only toward much more common words. Zero hits search the correction instead.               |
-
-Both full-text indexes are built on the expression `to_tsvector('english', title || ' ' || text)` instead of a stored column, so the 15 GB table never had to be rewritten. Phrases, hyphenated words and negations need word positions from the table, so their count is exact when it finishes within 1.5s, and otherwise shown as "about N", where N is the exact GIN count of all the words combined (an upper bound).
+Both full-text indexes are on the expression `to_tsvector('english', title || ' ' || text)`, so the 15 GB table was never rewritten. Counts for phrases and negations are exact if they finish within 1.5s, otherwise shown as "about N".
 
 ### Gaps in the dump
 
-The Hugging Face export (`wikimedia/wikipedia`, `20231101.en`) leaves out some pages entirely, so they are missing here too: date and year articles ("September 24", "1924") and a number of major articles such as London, Paris, World War II and The Who. "On this day" falls back to the day's Eastern Orthodox liturgical calendar page, which the dump does include.
+The Hugging Face export (`wikimedia/wikipedia`, `20231101.en`) leaves out date and year articles and some major ones such as London, Paris and World War II. "On this day" falls back to the day's Eastern Orthodox liturgical calendar page.
 
 ## Local dev
 
-1. **Install and configure.**
+Needs Python 3 with `pyarrow`, `huggingface_hub` and `psycopg` in `./venv`.
 
-   ```bash
-   npm install
-   cp .env.example .env   # fill in DATABASE_URL_UNPOOLED
-   ```
+```bash
+npm install
+cp .env.example .env   # set DATABASE_URL_UNPOOLED
+npm run db:download    # 11.6 GB of Parquet into ./data
+npm run db:ingest      # parallel COPY into Postgres, resumable
+npm run db:migrate     # extensions, tables, BM25 and GIN indexes (slow)
+npm run db:lexicon     # typo lexicon from article titles
+npm run db:images      # lead images from the page_props dump (about 470 MB)
+npm run db:prewarm     # optional: load every index into the compute's cache
+npm run dev
+```
 
-2. **Load the data** (Python 3 with `pyarrow`, `huggingface_hub` and `psycopg` in `./venv`). The download is 11.6 GB of Parquet and the ingest streams it into Postgres with parallel `COPY`, resumable at any point:
+To copy images into Object Storage, deploy the bucket, function and trigger declared in [`neon.ts`](neon.ts). To backfill all 2.2M images instead of only viewed ones (a few days), queue them once and track progress with `SELECT count(stored), count(*) FROM article_images`:
 
-   ```bash
-   npm run db:download
-   npm run db:ingest
-   ```
+```bash
+neon deploy --project-id <project> --branch <branch> --no-env-pull
+npm run db:images -- --queue-all
+```
 
-3. **Build the indexes and the typo lexicon, and load the lead images.** The BM25 and GIN indexes over every article each take a while. The images come from Wikipedia's latest `page_props` dump (about 470 MB):
-
-   ```bash
-   npm run db:migrate
-   npm run db:lexicon
-   npm run db:images
-   ```
-
-4. **(Optional) Warm the cache** so the first searches after a restart are fast. On computes of 18 CU and up the whole cache is shared buffers; smaller computes also fill Neon's Local File Cache, which the script reports through the `neon` extension:
-
-   ```bash
-   npm run db:prewarm
-   ```
-
-5. **Run it.**
-
-   ```bash
-   npm run dev
-   ```
-
-6. **(Optional) Copy images into Object Storage.** [`neon.ts`](neon.ts) declares the `assets` bucket, the `images` function and its every-minute trigger. Deploy them to your branch:
-
-   ```bash
-   neon deploy --project-id <project> --branch <branch> --no-env-pull
-   ```
-
-   Without a deploy, every image keeps loading from Wikimedia. To copy every image instead of only the viewed ones, queue them all once (about 2.2M files, a few days at Wikimedia's pace). Progress is `SELECT count(stored), count(*) FROM article_images`:
-
-   ```bash
-   npm run db:images -- --queue-all
-   ```
-
-### Scripts
-
-| Command                            | Purpose                                                     |
-| ---------------------------------- | ----------------------------------------------------------- |
-| `npm run dev` / `build`            | Next.js dev server / production build                       |
-| `npm run typecheck`                | `tsc`                                                       |
-| `npm run format`                   | Prettier over the repo                                      |
-| `npm run db:download`              | Download and verify the English Parquet files into `./data` |
-| `npm run db:ingest`                | Parallel `COPY` of every article into Postgres (resumable)  |
-| `npm run db:migrate`               | Extensions, tables and search indexes from `drizzle/*.sql`  |
-| `npm run db:lexicon`               | Rebuild the `search_terms` typo lexicon from article titles |
-| `npm run db:images`                | Load each article's lead image from the `page_props` dump   |
-| `npm run db:images -- --queue-all` | Queue every image without a copy for the `images` function  |
-| `npm run db:prewarm`               | Load every index into the compute's cache                   |
-| `npm run db:generate`              | Generate a migration from `src/db/schema.ts` (drizzle-kit)  |
+Also available: `npm run typecheck`, `npm run format`, and `npm run db:generate` (a drizzle-kit migration from [`src/db/schema.ts`](src/db/schema.ts)).
 
 ## Deployment
 
-Deploy on Vercel in `cle1` (Cleveland), next to the Neon compute in `us-east-2`, to keep each SQL-over-HTTP round trip short. Set `DATABASE_URL_UNPOOLED` to the direct Neon connection string, and `AWS_ENDPOINT_URL_S3` to the branch's storage endpoint so pages use the bucket copies of images (only the endpoint is read, at build time, and it is not a secret). Without it, images load from Wikimedia. Set `REVALIDATE_SECRET` to a long random string (`openssl rand -hex 32`) to enable `/api/revalidate`. Without it, the endpoint refuses every request. Set `CRON_SECRET` the same way: Vercel sends it with each cron run, and `/api/cron/main-page` refuses requests without it. Cron jobs run on production deployments only.
+Deploy on Vercel in `cle1`, next to the Neon compute in `us-east-2`.
+
+| Variable                | Purpose                                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL_UNPOOLED` | Direct Neon connection string.                                                                                         |
+| `AWS_ENDPOINT_URL_S3`   | Branch storage endpoint, read at build so pages use the bucket's image copies. Without it, images load from Wikimedia. |
+| `REVALIDATE_SECRET`     | Bearer token for `/api/revalidate` (`openssl rand -hex 32`). Without it, every request is refused.                     |
+| `CRON_SECRET`           | Sent by Vercel Cron to `/api/cron/main-page`. Cron runs on production deployments only.                                |
 
 Text and images are from Wikipedia and Wikimedia Commons. Text is under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). This is an unofficial mirror, not affiliated with the Wikimedia Foundation.
