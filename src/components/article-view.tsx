@@ -100,16 +100,18 @@ type Neighbours = { prev: string | null; next: string | null }
 type ArticleLookup = ({ kind: 'article'; article: ArticleRecord } & Neighbours) | { kind: 'redirect'; to: string } | ({ kind: 'missing' } & Neighbours)
 
 /**
- * Reads the article and its neighbours in one round trip (a transaction of
- * three statements). The neighbours are one step backward and forward along
- * the unique title index, so they cost well under a millisecond and work for a
- * missing title too: they show where it would sit. A miss then looks for the
- * stored spelling ("albert einstein" -> Albert Einstein). Wikipedia titles are
- * at most 255 bytes, so a longer one is missing without a query.
+ * Reads the article, its neighbours and the stored spelling of the title in
+ * one round trip (a transaction of four statements). The neighbours are one
+ * step backward and forward along the unique title index, so they cost well
+ * under a millisecond and work for a missing title too: they show where it
+ * would sit. The stored spelling ("albert einstein" -> Albert Einstein) is one
+ * probe of the lower(title) index, looked up with the rest so a miss needs no
+ * second round trip. Wikipedia titles are at most 255 bytes, so a longer one
+ * is missing without a query.
  */
 export async function lookUpArticle(title: string): Promise<ArticleLookup> {
   if (Buffer.byteLength(title) > 255) return { kind: 'missing', prev: null, next: null }
-  const [rows, before, after] = await db.batch([
+  const [rows, before, after, spellings] = await db.batch([
     db
       .select({ ...getTableColumns(articles), image: leadImage() })
       .from(articles)
@@ -117,16 +119,17 @@ export async function lookUpArticle(title: string): Promise<ArticleLookup> {
       .limit(1),
     db.select({ title: articles.title }).from(articles).where(lt(articles.title, title)).orderBy(desc(articles.title)).limit(1),
     db.select({ title: articles.title }).from(articles).where(gt(articles.title, title)).orderBy(asc(articles.title)).limit(1),
+    db
+      .select({ title: articles.title })
+      .from(articles)
+      .where(sql`lower(${articles.title}) = lower(${title})`)
+      .orderBy(sql`${articles.title} = ${title} DESC`)
+      .limit(1),
   ])
   const prev = before[0]?.title ?? null
   const next = after[0]?.title ?? null
   if (rows[0]) return { kind: 'article', article: rows[0], prev, next }
-  const [stored] = await db
-    .select({ title: articles.title })
-    .from(articles)
-    .where(sql`lower(${articles.title}) = lower(${title})`)
-    .orderBy(sql`${articles.title} = ${title} DESC`)
-    .limit(1)
+  const stored = spellings[0]
   return stored && stored.title !== title ? { kind: 'redirect', to: stored.title } : { kind: 'missing', prev, next }
 }
 

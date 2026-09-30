@@ -3,7 +3,7 @@ import { MainPage } from '@/components/main-page'
 import { MAIN_PAGE, ogImageHref, titleFromSegments, wikiHref } from '@/lib/links'
 import { MAIN_PAGE_METADATA, pageMetadata } from '@/lib/seo'
 import type { Metadata } from 'next'
-import { cacheLife, cacheTag } from 'next/cache'
+import { cacheLife } from 'next/cache'
 
 type Props = { params: Promise<{ title: string[] }> }
 
@@ -23,12 +23,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 /**
  * Each article's <head>, matching Wikipedia's: articles are indexable with
  * their stored title's URL as canonical, and a missing article or special
- * page is `noindex,nofollow`. Cached and tagged like the page.
+ * page is `noindex,nofollow`. Cached like the page, and refreshed with it.
  */
 async function titleMetadata(title: string): Promise<Metadata> {
   'use cache'
   cacheLife('forever')
-  cacheTag('wiki', title)
   if (title === MAIN_PAGE) return MAIN_PAGE_METADATA
   if (title.startsWith('Special:')) return pageMetadata(`${title} - Wikipedia`, { index: false })
   const loaded = await lookUpArticle(title).catch(() => null)
@@ -57,13 +56,11 @@ export default async function WikiPage({ params }: Props) {
 }
 
 /**
- * The whole page for one title, cached until it is revalidated. It is tagged
- * with its title and with `wiki`, so `/api/revalidate` can refresh one page or
- * all of them (Wikipedia titles start with a capital, so no title is `wiki`).
+ * The whole page for one title, cached until `/api/revalidate` refreshes its
+ * exact path. Each spelling of a URL (`/wiki/albert_einstein`) is its own path.
  */
 async function TitlePage({ title }: { title: string }) {
   'use cache'
   cacheLife('forever')
-  cacheTag('wiki', title)
   return title === MAIN_PAGE ? <MainPage /> : <ArticlePage title={title} />
 }

@@ -111,21 +111,26 @@ function SearchTiming({ q, payload, loading }: { q: string; payload: SearchPaylo
 }
 
 /**
- * Special:Search. Results come from `/api/search`, one request
- * per keystroke, query or page, with no debounce: each new request aborts the
- * one before it. The rows and their exact total arrive together. The URL
- * mirrors the query, so back/forward walk the submitted searches.
+ * Special:Search. The server renders the first results into the page
+ * (`initialPayload`), so they show before any script runs. After that, results
+ * come from `/api/search`, one request per keystroke, query or page, with no
+ * debounce: each new request aborts the one before it. The rows and their
+ * exact total arrive together. The URL mirrors the query, so back/forward walk
+ * the submitted searches.
  */
-export function SearchResults({ initialQuery, initialPage, exactTitle }: { initialQuery: string; initialPage: number; exactTitle: string | null }) {
+export function SearchResults({ initialQuery, initialPage, exactTitle, initialPayload }: { initialQuery: string; initialPage: number; exactTitle: string | null; initialPayload: SearchPayload | null }) {
   const [input, setInput] = useState(initialQuery)
   const [query, setQuery] = useState({ q: initialQuery, page: initialPage, verbatim: false })
-  const [payload, setPayload] = useState<SearchPayload | null>(null)
-  const [loading, setLoading] = useState(Boolean(initialQuery))
+  const [payload, setPayload] = useState<SearchPayload | null>(initialPayload)
+  const [loading, setLoading] = useState(Boolean(initialQuery) && !initialPayload)
   const abortRef = useRef<AbortController | null>(null)
   const topRef = useRef<HTMLDivElement>(null)
+  // The query the server already answered, compared by identity so going back to it later fetches afresh.
+  const served = useRef(initialPayload ? query : null)
 
   useEffect(() => {
     abortRef.current?.abort()
+    if (query === served.current) return
     if (!query.q) {
       setPayload(null)
       setLoading(false)

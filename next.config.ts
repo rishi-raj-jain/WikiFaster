@@ -5,9 +5,12 @@ const nextConfig: NextConfig = {
   // rendered on a visit, be served from the cache for later ones (ISR).
   cacheComponents: true,
   partialPrefetching: true,
-  // Pages stay cached until /api/revalidate refreshes them, never on a timer. Browsers still
-  // check back with the server after five minutes, and get the cached page.
-  cacheLife: { forever: { stale: 300, revalidate: Infinity, expire: Infinity } },
+  // Pages stay cached on Vercel until /api/revalidate (or the Main Page's cron job) refreshes them, never
+  // on a timer. They are prerendered (ISR), so Vercel keeps one copy for every instance and serves it
+  // from the CDN, and browsers get it with `max-age=0`, so they always ask again. `stale: 30` is the
+  // least that allows prerendering: `use cache` below that only keeps a page in one instance's memory.
+  // It also lets the client router reuse a page for 30 seconds after an in-app navigation.
+  cacheLife: { forever: { stale: 30, revalidate: Infinity, expire: Infinity } },
   env: {
     // Public URL of the "assets" bucket that holds copies of lead images. Not a secret: the bucket is public_read.
     NEXT_PUBLIC_ASSETS_URL: process.env.AWS_ENDPOINT_URL_S3 ? `${process.env.AWS_ENDPOINT_URL_S3}/assets` : '',

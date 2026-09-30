@@ -3,7 +3,7 @@
 import { ArticleShell, MainShell, SearchShell } from '@/components/loading'
 import { MAIN_PAGE, SPECIAL_RANDOM, SPECIAL_SEARCH, titleFromSegments } from '@/lib/links'
 import { usePathname } from 'next/navigation'
-import { createContext, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useState } from 'react'
 
 const StartContext = createContext<(href: string) => void>(() => {})
 
@@ -17,7 +17,7 @@ function titleOf(pathname: string): string {
   return titleFromSegments(pathname.slice('/wiki/'.length).split('/'))
 }
 
-/** The page being navigated to, drawn the moment the link is clicked: the same shells the server streams first. */
+/** The page being navigated to, drawn the moment the link is clicked, until the server's response arrives. */
 function PendingPage({ pathname }: { pathname: string }) {
   const title = titleOf(pathname)
   if (title === MAIN_PAGE) return <MainShell />
@@ -25,10 +25,7 @@ function PendingPage({ pathname }: { pathname: string }) {
   return <ArticleShell title={title === SPECIAL_RANDOM ? null : title} />
 }
 
-/**
- * Reports each path the router commits. It reads `usePathname()` inside its
- * own Suspense boundary, so the prerendered shell does not need the URL.
- */
+/** Reports each path the router commits. */
 function PathWatcher({ onCommit }: { onCommit: () => void }) {
   const pathname = usePathname()
   // Before paint, so the placeholder and the new page never show together.
@@ -39,7 +36,7 @@ function PathWatcher({ onCommit }: { onCommit: () => void }) {
 /**
  * Makes every navigation visible at once: a click on a link to another page
  * swaps the current page for that page's placeholder until the router commits
- * the server's streamed response. The header stays, and its search box starts
+ * the server's response. The header stays, and its search box starts
  * navigations through {@link useStartNavigation}. Clicks that stay on the same
  * path (search paging, "Did you mean") are left to their handlers.
  */
@@ -69,9 +66,7 @@ export function PendingNavigation({ header, children }: { header: React.ReactNod
 
   return (
     <StartContext value={start}>
-      <Suspense fallback={null}>
-        <PathWatcher onCommit={committed} />
-      </Suspense>
+      <PathWatcher onCommit={committed} />
       {header}
       <div hidden={pending != null}>{children}</div>
       {pending ? <PendingPage pathname={pending} /> : null}
