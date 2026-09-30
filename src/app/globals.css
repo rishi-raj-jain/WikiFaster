@@ -227,10 +227,35 @@
   background: #fff;
 }
 
+/*
+ * On small screens the lead image sits above the text, so it fills a fixed 4:5
+ * frame (cropped from the top, where faces usually are) and the text below
+ * never moves when it loads.
+ */
 @media (max-width: 639px) {
   .wiki-lead-image {
     float: none;
     margin: 0.5em auto 1em;
+  }
+
+  .wiki-lead-image img {
+    width: 250px;
+    aspect-ratio: 4 / 5;
+    max-height: none;
+    object-fit: cover;
+    object-position: center top;
+  }
+}
+
+/* A shimmer across the image's box until the image loads. */
+.wiki-lead-image[data-loading] img {
+  background: linear-gradient(100deg, var(--wiki-divider) 35%, var(--wiki-page) 50%, var(--wiki-divider) 65%) 150% 0 / 200% 100%;
+  animation: wiki-shimmer 1.2s linear infinite;
+}
+
+@keyframes wiki-shimmer {
+  to {
+    background-position: -50% 0;
   }
 }
 
@@ -251,6 +276,12 @@
 
 .wiki-body ul:last-child {
   margin-bottom: 0.5em;
+}
+
+/* Search results under a missing title's notice keep Special:Search's layout, not the article's lists. */
+.wiki-body .wiki-results ul {
+  margin: 1.5rem 0 0;
+  list-style: none;
 }
 
 /* The category box (#catlinks). */

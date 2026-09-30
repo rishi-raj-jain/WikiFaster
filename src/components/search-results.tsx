@@ -111,6 +111,61 @@ function SearchTiming({ q, payload, loading }: { q: string; payload: SearchPaylo
 }
 
 /**
+ * Search results for a title that has no article, shown below the notice that
+ * says so. The page around them is cached, so they are fetched from
+ * `/api/search` once it loads and always come fresh from Neon.
+ */
+export function MissingTitleResults({ q }: { q: string }) {
+  const [payload, setPayload] = useState<SearchPayload | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch(`/api/search?${new URLSearchParams({ q, page: '1' })}`, { signal: controller.signal })
+      .then((response) => response.json() as Promise<SearchPayload>)
+      .then(setPayload)
+      .catch((err) => {
+        if (controller.signal.aborted) return
+        setPayload({ q, page: 1, rows: [], mode: 'fulltext', count: null, ms: 0, error: err instanceof Error ? err.message : 'Search failed', corrected: null, suggestion: null })
+      })
+    return () => controller.abort()
+  }, [q])
+
+  if (!payload) {
+    return (
+      <div className="wiki-results mt-6 max-w-[760px]">
+        <ResultsLoading />
+      </div>
+    )
+  }
+  if (payload.error) return <p className="mt-6 text-sm text-destructive">{payload.error}</p>
+  if (payload.rows.length === 0) return <p className="mt-6 text-sm">There were no results matching the query.</p>
+  const shownQuery = payload.corrected ?? q
+  const more = (payload.count?.count ?? 0) > payload.rows.length
+  return (
+    <section aria-label={`Search results for ${shownQuery}`} className="wiki-results mt-6 max-w-[760px]">
+      <div className="flex flex-col gap-3">
+        {payload.corrected ? (
+          <p className="text-sm">
+            Showing results for <b className="italic">{payload.corrected}</b>.
+          </p>
+        ) : null}
+        <Summary payload={payload} />
+      </div>
+      <ul className="mt-6 flex flex-col gap-6">
+        {payload.rows.map((hit) => (
+          <Result key={hit.id} hit={hit} />
+        ))}
+      </ul>
+      {more ? (
+        <p className="mt-6 text-sm font-bold">
+          <Link href={searchHref(shownQuery, { page: 2, fulltext: true })}>More search results</Link>
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
+/**
  * Special:Search. The server renders the first results into the page
  * (`initialPayload`), so they show before any script runs. After that, results
  * come from `/api/search`, one request per keystroke, query or page, with no

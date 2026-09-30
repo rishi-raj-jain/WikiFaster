@@ -1,13 +1,15 @@
 import { DbTimingBar } from '@/components/db-timing'
+import { LeadImage } from '@/components/lead-image'
 import { LinkedList } from '@/components/linked-list'
 import { ARTICLE_TABS, ArticleShell, articleViewTabs, Tagline } from '@/components/loading'
 import { Footer, FOOTER_LINKS, LICENSE_LINE, PageLayout, TitleBar } from '@/components/page-layout'
+import { MissingTitleResults } from '@/components/search-results'
 import { TocButton, TocSidebar } from '@/components/toc'
 import { db } from '@/db'
 import { articles, leadImage } from '@/db/schema'
 import { linkTitles, SEE_ALSO } from '@/lib/article-links'
 import { queueUncopiedImages } from '@/lib/image-copies'
-import { filePageUrl, imageSourceUrl, imageSrc, LICENSE_URL, searchHref, SITE_URL, wikiHref, wikipediaUrl, type ImageRef } from '@/lib/links'
+import { imageSourceUrl, LICENSE_URL, searchHref, SITE_URL, wikiHref, wikipediaUrl, type ImageRef } from '@/lib/links'
 import { JsonLd } from '@/lib/seo'
 import { firstSentence, parseArticle, type Block, type ParsedArticle } from '@/lib/wikitext'
 import { asc, desc, eq, getTableColumns, gt, inArray, lt, sql } from 'drizzle-orm'
@@ -26,20 +28,6 @@ function Lead({ text, title }: { text: string; title: string }) {
       <b>{text.slice(at, at + bare.length)}</b>
       {text.slice(at + bare.length)}
     </p>
-  )
-}
-
-/**
- * The lead image, floated right where an infobox's image would be, and linked
- * to its file page on Wikipedia, which credits the author and license.
- */
-function LeadImage({ image, title }: { image: ImageRef; title: string }) {
-  return (
-    <figure className="wiki-lead-image">
-      <a href={filePageUrl(image)} target="_blank" rel="noreferrer" title="Image credit and license on Wikipedia">
-        <img src={imageSrc(image)} alt={title} decoding="async" fetchPriority="high" />
-      </a>
-    </figure>
   )
 }
 
@@ -272,6 +260,7 @@ export async function ArticlePage({ title }: { title: string }) {
         ) : (
           <>
             <Missing title={title} />
+            <MissingTitleResults q={title} />
             <NeighbourLinks prev={found.prev} next={found.next} />
           </>
         )}
